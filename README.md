@@ -1,2 +1,0 @@
-# bot-game
-bot game
