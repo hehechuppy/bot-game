@@ -3,7 +3,7 @@ const messageHandler = require('./events/messageCreate');
 const interactionHandler = require('./events/interactionCreate');
 const readyHandler = require('./events/ready');
 const backup = require('./backup');
-const { startRewardJob } = require('./jobs/rewardJob.js');  // <-- Thêm .js
+const { startRewardJob } = require('./jobs/rewardJob.js');
 require('dotenv').config();
 
 const client = new Client({
@@ -41,3 +41,14 @@ backup.initBackupHandlers(client);
 startRewardJob(client);
 
 client.login(process.env.DISCORD_TOKEN);
+
+// --- Handle port cho Render (Background Worker) ---
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running');
+}).listen(PORT, () => {
+    console.log(✅ Server listening on port ${PORT});
+});
+Đó
