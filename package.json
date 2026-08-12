@@ -1,0 +1,35 @@
+{
+  "name": "bot-discord-2",
+  "version": "1.0.0",
+  "description": "Discord bot quản lý kinh tế, mini-games và backup",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon --watch . --exec \"node index.js\"",
+    "register": "node register-commands.js",
+    "lint": "echo \"No linter configured\""
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord-bot",
+    "games",
+    "economy"
+  ],
+  "author": "YourName",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "canvas": "^3.2.3",
+    "cron": "^2.1.0",
+    "discord.js": "^14.11.0",
+    "dotenv": "^16.1.0",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
