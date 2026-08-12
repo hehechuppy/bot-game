@@ -50,4 +50,3 @@ http.createServer((req, res) => {
     res.end('Bot is running');
 }).listen(PORT, () => {
     console.log(✅ Server listening on port ${PORT});
-});
