@@ -345,4 +345,110 @@ async function handleDeathTriggers(gameMsg, store, deadId) {
   gameData.hunterRevengeTarget = null;
 
   await gameMsg.edit({
-    embeds:
+    embeds: [new EmbedBuilder().setColor('#FF6600').setTitle('🏹 THỢ SĂN TRẢ THÙ!').setDescription(`**${gameData.participants.get(deadId)}** là Thợ Săn! Có ${HUNTER_TIME / 1000} giây để bắn hạ 1 người trước khi ngã xuống.`)],
+    components: buildPlayerButtons('ms_hunter', gameMsg.id, gameData, targets)
+  });
+
+  await new Promise(resolve => {
+    const collector = gameMsg.createMessageComponentCollector({ time: HUNTER_TIME });
+    collector.on('end', resolve);
+  });
+
+  gameData.pendingHunterId = null;
+  const revengeTarget = gameData.hunterRevengeTarget;
+  gameData.hunterRevengeTarget = null;
+
+  if (revengeTarget && gameData.alive.has(revengeTarget)) {
+    gameData.alive.delete(revengeTarget);
+    await gameMsg.edit({
+      embeds: [new EmbedBuilder().setColor('#FF0000').setTitle('🏹 PHÁT SÚNG CUỐI CÙNG').setDescription(`💥 **${gameData.participants.get(revengeTarget)}** đã bị Thợ Săn bắn hạ!`)],
+      components: []
+    });
+    await handleDeathTriggers(gameMsg, store, revengeTarget);
+  }
+}
+
+async function checkWinAndAnnounce(gameMsg, store) {
+  const gameData = store.activeMaSoiGames.get(gameMsg.id);
+  if (!gameData) return true;
+
+  const aliveWolves = [...gameData.alive].filter(uid => gameData.roles.get(uid) === 'soi').length;
+  const aliveOthers = gameData.alive.size - aliveWolves;
+
+  let winningFaction = null;
+  if (aliveWolves === 0) winningFaction = 'dan';
+  else if (aliveWolves >= aliveOthers) winningFaction = 'soi';
+
+  if (!winningFaction) return false;
+
+  const winners = [...gameData.participants.keys()].filter(uid => ROLE_META[gameData.roles.get(uid)].faction === winningFaction);
+  winners.forEach(uid => store.addTungXu(uid, WIN_REWARD));
+
+  const roleReveal = [...gameData.participants.entries()].map(([uid, name]) => {
+    const role = gameData.roles.get(uid);
+    const status = gameData.alive.has(uid) ? '🟢 Sống' : '⚫ Đã chết';
+    return `• **${name}** - ${ROLE_META[role].label} (${status})`;
+  }).join('\n');
+
+  const winEmbed = new EmbedBuilder()
+    .setColor(winningFaction === 'soi' ? '#8B0000' : '#22CC22')
+    .setTitle(winningFaction === 'soi' ? '🐺 PHE SÓI CHIẾN THẮNG!' : '🧑‍🌾 PHE DÂN LÀNG CHIẾN THẮNG!')
+    .setDescription(`Mỗi người thắng cuộc nhận **+${WIN_REWARD.toLocaleString()} Mcoin**!\n\n📋 **Vai trò của mọi người:**\n${roleReveal}`);
+
+  await gameMsg.channel.send({ embeds: [winEmbed] });
+  store.activeMaSoiGames.delete(gameMsg.id);
+  return true;
+}
+
+async function dayDiscussion(gameMsg, store) {
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#FFCC00').setTitle('💬 THẢO LUẬN').setDescription(`Mọi người có ${DISCUSSION_TIME / 1000} giây để thảo luận trước khi vote treo cổ!`)],
+    components: []
+  });
+  await new Promise(resolve => setTimeout(resolve, DISCUSSION_TIME));
+}
+
+async function votePhase(gameMsg, store) {
+  const gameData = store.activeMaSoiGames.get(gameMsg.id);
+  gameData.votes = new Map();
+
+  const targets = [...gameData.alive];
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ BỎ PHIẾU TREO CỔ').setDescription(`Mọi người còn sống hãy vote 1 người để treo cổ! Có ${VOTE_TIME / 1000} giây.`)],
+    components: buildPlayerButtons('ms_vote', gameMsg.id, gameData, targets)
+  });
+
+  await new Promise(resolve => {
+    const collector = gameMsg.createMessageComponentCollector({ time: VOTE_TIME });
+    collector.on('end', resolve);
+  });
+
+  const tally = new Map();
+  gameData.votes.forEach(targetId => tally.set(targetId, (tally.get(targetId) || 0) + 1));
+  let bestCount = 0;
+  let tied = [];
+  tally.forEach((count, uid) => {
+    if (count > bestCount) { bestCount = count; tied = [uid]; }
+    else if (count === bestCount) { tied.push(uid); }
+  });
+
+  if (tied.length === 0) {
+    await gameMsg.edit({
+      embeds: [new EmbedBuilder().setColor('#888888').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription('Không ai bị treo cổ (không có phiếu nào)!')],
+      components: []
+    });
+    return null;
+  }
+
+  const lynchedId = tied[Math.floor(Math.random() * tied.length)];
+  gameData.alive.delete(lynchedId);
+
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription(`💀 **${gameData.participants.get(lynchedId)}** (${ROLE_META[gameData.roles.get(lynchedId)].label}) đã bị treo cổ!`)],
+    components: []
+  });
+
+  return lynchedId;
+}
+
+module.exports = { startMaSoi, assignRoles, ROLE_META, MIN_PLAYERS };
