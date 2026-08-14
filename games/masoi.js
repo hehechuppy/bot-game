@@ -2,7 +2,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const JOIN_TIME = 45000;
-const MIN_PLAYERS = 7;
+const MIN_PLAYERS = 3;
 const WOLF_TIME = 20000;
 const GUARD_TIME = 15000;
 const DOCTOR_TIME = 15000;
@@ -23,16 +23,23 @@ const ROLE_META = {
   baove:   { label: 'Bảo Vệ 🛡️', faction: 'dan' }
 };
 
+// Vai trò phụ được ưu tiên gán theo thứ tự này, tự dừng khi hết người
+// (VD chỉ 3 người -> chỉ đủ chỗ cho Sói + Tiên Tri + Bác Sĩ, không có Bảo Vệ/Phù Thủy/Thợ Săn/Dân Làng)
+const SPECIAL_ROLE_PRIORITY = ['tientri', 'bacsi', 'thosan', 'phuthuy', 'baove'];
+
 function assignRoles(participantIds) {
   const shuffled = [...participantIds].sort(() => Math.random() - 0.5);
   const n = shuffled.length;
   const wolfCount = Math.max(1, Math.floor(n / 4));
-  const specialRoles = ['tientri', 'bacsi', 'thosan', 'phuthuy', 'baove'];
 
   const roles = new Map();
   let idx = 0;
-  for (let i = 0; i < wolfCount; i++) { roles.set(shuffled[idx], 'soi'); idx++; }
-  for (const r of specialRoles) { roles.set(shuffled[idx], r); idx++; }
+  for (let i = 0; i < wolfCount && idx < n; i++) { roles.set(shuffled[idx], 'soi'); idx++; }
+  for (const r of SPECIAL_ROLE_PRIORITY) {
+    if (idx >= n) break;
+    roles.set(shuffled[idx], r);
+    idx++;
+  }
   while (idx < n) { roles.set(shuffled[idx], 'danlang'); idx++; }
   return roles;
 }
@@ -51,6 +58,20 @@ function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
   }
   if (count > 0) rows.push(row);
   return rows;
+}
+
+// Gửi DM cho 1 người chơi, nếu thất bại (DM tắt) thì báo công khai trong kênh để họ biết mà bật lên
+async function sendDM(client, userId, payload, fallbackChannel, username) {
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send(payload);
+    return true;
+  } catch (e) {
+    if (fallbackChannel) {
+      await fallbackChannel.send(`⚠️ Không thể gửi tin nhắn riêng cho **${username}** (có thể do đã tắt DM). Vui lòng bật DM từ thành viên server để chơi Ma Sói đầy đủ!`).catch(() => {});
+    }
+    return false;
+  }
 }
 
 async function startMaSoi(client, message, store) {
@@ -115,25 +136,24 @@ async function startMaSoi(client, message, store) {
   gameData.alive = new Set(gameData.participants.keys());
   gameData.phase = 'night';
 
-  // Thông báo vai trò riêng cho từng người qua DM (nếu bot không DM được thì bỏ qua, không chặn game)
+  // Gửi vai trò riêng cho từng người qua DM
   for (const [uid, role] of gameData.roles.entries()) {
-    try {
-      const user = await client.users.fetch(uid);
-      await user.send(`🐺 **GAME MA SÓI** - Vai trò của bạn là: **${ROLE_META[role].label}**`);
-    } catch (e) {
-      // Người dùng tắt DM -> bỏ qua, không ảnh hưởng luồng game
-    }
+    await sendDM(
+      client, uid,
+      `🐺 **GAME MA SÓI** - Vai trò của bạn là: **${ROLE_META[role].label}**\nMọi hành động ban đêm (nếu có) sẽ được bot nhắn riêng cho bạn ngay tại đây, hãy để ý!`,
+      gameMsg.channel, gameData.participants.get(uid)
+    );
   }
 
   await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle('🐺 GAME MA SÓI - BẮT ĐẦU!').setDescription('Vai trò đã được chia xong (đã gửi qua tin nhắn riêng nếu có thể)! Đêm đầu tiên bắt đầu...')],
+    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle('🐺 GAME MA SÓI - BẮT ĐẦU!').setDescription('Vai trò đã được gửi riêng qua tin nhắn (DM) cho từng người! Đêm đầu tiên bắt đầu...')],
     components: []
   });
 
-  await runGameLoop(gameMsg, store);
+  await runGameLoop(gameMsg, store, client);
 }
 
-async function runGameLoop(gameMsg, store) {
+async function runGameLoop(gameMsg, store, client) {
   while (true) {
     const gameData = store.activeMaSoiGames.get(gameMsg.id);
     if (!gameData) return;
@@ -147,11 +167,11 @@ async function runGameLoop(gameMsg, store) {
     gameData.witchPoisonTarget = null;
 
     await nightAnnounce(gameMsg, store);
-    await wolfPhase(gameMsg, store);
-    await guardPhase(gameMsg, store);
-    await doctorPhase(gameMsg, store);
-    await seerPhase(gameMsg, store);
-    await witchPhase(gameMsg, store);
+    await wolfPhase(gameMsg, store, client);
+    await guardPhase(gameMsg, store, client);
+    await doctorPhase(gameMsg, store, client);
+    await seerPhase(gameMsg, store, client);
+    await witchPhase(gameMsg, store, client);
     const died = await resolveNight(gameMsg, store);
 
     for (const deadId of died) {
@@ -173,29 +193,35 @@ async function runGameLoop(gameMsg, store) {
 async function nightAnnounce(gameMsg, store) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
   await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#000033').setTitle(`🌙 ĐÊM ${gameData.round} BẮT ĐẦU`).setDescription('Trời tối dần... mọi người nhắm mắt lại...')],
+    embeds: [new EmbedBuilder().setColor('#000033').setTitle(`🌙 ĐÊM ${gameData.round} BẮT ĐẦU`).setDescription('Trời tối dần... mọi người nhắm mắt lại... (những ai có vai trò đặc biệt hãy chú ý tin nhắn riêng)')],
     components: []
   });
   await new Promise(resolve => setTimeout(resolve, 3000));
 }
 
-async function wolfPhase(gameMsg, store) {
+async function wolfPhase(gameMsg, store, client) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
   const aliveWolves = [...gameData.alive].filter(uid => gameData.roles.get(uid) === 'soi');
   gameData.wolfVictim = null;
   if (aliveWolves.length === 0) return;
 
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle(`🐺 ĐÊM ${gameData.round} - SÓI ĐANG HÀNH ĐỘNG`).setDescription('Sói đang bí mật chọn nạn nhân qua tin nhắn riêng... vui lòng đợi.')],
+    components: []
+  });
+
   const targets = [...gameData.alive];
   const embed = new EmbedBuilder()
     .setColor('#8B0000')
-    .setTitle(`🐺 ĐÊM ${gameData.round} - SÓI CHỌN NẠN NHÂN`)
-    .setDescription(`Chỉ **Sói** mới bấm được nút bên dưới. Có ${WOLF_TIME / 1000} giây để chọn.`);
-  await gameMsg.edit({ embeds: [embed], components: buildPlayerButtons('ms_wolf', gameMsg.id, gameData, targets) });
+    .setTitle(`🐺 ĐÊM ${gameData.round} - CHỌN NẠN NHÂN`)
+    .setDescription(`Bạn có ${WOLF_TIME / 1000} giây để chọn 1 người sẽ bị tấn công đêm nay.`);
+  const rows = buildPlayerButtons('ms_wolf', gameMsg.id, gameData, targets);
 
-  await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: WOLF_TIME });
-    collector.on('end', resolve);
-  });
+  for (const wolfId of aliveWolves) {
+    await sendDM(client, wolfId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(wolfId));
+  }
+
+  await new Promise(resolve => setTimeout(resolve, WOLF_TIME));
 
   const tally = new Map();
   gameData.wolfVotes.forEach(targetId => tally.set(targetId, (tally.get(targetId) || 0) + 1));
@@ -208,7 +234,7 @@ async function wolfPhase(gameMsg, store) {
   gameData.wolfVictim = tied.length > 0 ? tied[Math.floor(Math.random() * tied.length)] : null;
 }
 
-async function guardPhase(gameMsg, store) {
+async function guardPhase(gameMsg, store, client) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
   const guardId = [...gameData.alive].find(uid => gameData.roles.get(uid) === 'baove');
   gameData.guardTarget = null;
@@ -217,42 +243,48 @@ async function guardPhase(gameMsg, store) {
   const targets = [...gameData.alive].filter(uid => uid !== guardId && uid !== gameData.prevGuardTarget);
   if (targets.length === 0) return;
 
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#4444FF').setTitle(`🛡️ ĐÊM ${gameData.round} - BẢO VỆ ĐANG HÀNH ĐỘNG`).setDescription('Bảo Vệ đang chọn người để bảo vệ qua tin nhắn riêng... vui lòng đợi.')],
+    components: []
+  });
+
   const embed = new EmbedBuilder()
     .setColor('#4444FF')
-    .setTitle(`🛡️ ĐÊM ${gameData.round} - BẢO VỆ CHỌN NGƯỜI BẢO VỆ`)
-    .setDescription(`Chỉ **Bảo Vệ** mới bấm được. Không thể chọn trùng người đêm trước. Có ${GUARD_TIME / 1000} giây.`);
-  await gameMsg.edit({ embeds: [embed], components: buildPlayerButtons('ms_guard', gameMsg.id, gameData, targets) });
+    .setTitle(`🛡️ ĐÊM ${gameData.round} - CHỌN NGƯỜI BẢO VỆ`)
+    .setDescription(`Không thể chọn trùng người đêm trước. Bạn có ${GUARD_TIME / 1000} giây.`);
+  const rows = buildPlayerButtons('ms_guard', gameMsg.id, gameData, targets);
+  await sendDM(client, guardId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(guardId));
 
-  await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: GUARD_TIME });
-    collector.on('end', resolve);
-  });
+  await new Promise(resolve => setTimeout(resolve, GUARD_TIME));
 
   if (gameData.guardTarget) {
     gameData.prevGuardTarget = gameData.guardTarget;
   }
 }
 
-async function doctorPhase(gameMsg, store) {
+async function doctorPhase(gameMsg, store, client) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
   const doctorId = [...gameData.alive].find(uid => gameData.roles.get(uid) === 'bacsi');
   gameData.doctorTarget = null;
   if (!doctorId) return;
 
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#22CC22').setTitle(`💊 ĐÊM ${gameData.round} - BÁC SĨ ĐANG HÀNH ĐỘNG`).setDescription('Bác Sĩ đang chọn người để cứu qua tin nhắn riêng... vui lòng đợi.')],
+    components: []
+  });
+
   const targets = [...gameData.alive];
   const embed = new EmbedBuilder()
     .setColor('#22CC22')
-    .setTitle(`💊 ĐÊM ${gameData.round} - BÁC SĨ CHỌN NGƯỜI CỨU`)
-    .setDescription(`Chỉ **Bác Sĩ** mới bấm được (có thể tự cứu mình). Có ${DOCTOR_TIME / 1000} giây.`);
-  await gameMsg.edit({ embeds: [embed], components: buildPlayerButtons('ms_doctor', gameMsg.id, gameData, targets) });
+    .setTitle(`💊 ĐÊM ${gameData.round} - CHỌN NGƯỜI CỨU`)
+    .setDescription(`Bạn có thể tự cứu mình. Có ${DOCTOR_TIME / 1000} giây.`);
+  const rows = buildPlayerButtons('ms_doctor', gameMsg.id, gameData, targets);
+  await sendDM(client, doctorId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(doctorId));
 
-  await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: DOCTOR_TIME });
-    collector.on('end', resolve);
-  });
+  await new Promise(resolve => setTimeout(resolve, DOCTOR_TIME));
 }
 
-async function seerPhase(gameMsg, store) {
+async function seerPhase(gameMsg, store, client) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
   const seerId = [...gameData.alive].find(uid => gameData.roles.get(uid) === 'tientri');
   gameData.seerActed = false;
@@ -261,39 +293,46 @@ async function seerPhase(gameMsg, store) {
   const targets = [...gameData.alive].filter(uid => uid !== seerId);
   if (targets.length === 0) return;
 
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#CC66FF').setTitle(`🔮 ĐÊM ${gameData.round} - TIÊN TRI ĐANG HÀNH ĐỘNG`).setDescription('Tiên Tri đang soi vai trò qua tin nhắn riêng... vui lòng đợi.')],
+    components: []
+  });
+
   const embed = new EmbedBuilder()
     .setColor('#CC66FF')
-    .setTitle(`🔮 ĐÊM ${gameData.round} - TIÊN TRI SOI VAI TRÒ`)
-    .setDescription(`Chỉ **Tiên Tri** mới bấm được, kết quả chỉ mình bạn thấy. Có ${SEER_TIME / 1000} giây.`);
-  await gameMsg.edit({ embeds: [embed], components: buildPlayerButtons('ms_seer', gameMsg.id, gameData, targets) });
+    .setTitle(`🔮 ĐÊM ${gameData.round} - SOI VAI TRÒ`)
+    .setDescription(`Chọn 1 người để xem họ có phải Sói không. Có ${SEER_TIME / 1000} giây.`);
+  const rows = buildPlayerButtons('ms_seer', gameMsg.id, gameData, targets);
+  await sendDM(client, seerId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(seerId));
 
-  await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: SEER_TIME });
-    collector.on('end', resolve);
-  });
+  await new Promise(resolve => setTimeout(resolve, SEER_TIME));
 }
 
-async function witchPhase(gameMsg, store) {
+async function witchPhase(gameMsg, store, client) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
   const witchId = [...gameData.alive].find(uid => gameData.roles.get(uid) === 'phuthuy');
   gameData.witchActedTonight = false;
   if (!witchId) return;
   if (gameData.witchHealUsed && gameData.witchPoisonUsed) return;
 
-  const victimName = gameData.wolfVictim ? gameData.participants.get(gameData.wolfVictim) : 'Không ai';
-  const embed = new EmbedBuilder()
-    .setColor('#9933CC')
-    .setTitle(`🧙 ĐÊM ${gameData.round} - PHÙ THỦY HÀNH ĐỘNG`)
-    .setDescription(`Sói đã chọn giết: **${victimName}**\nChỉ **Phù Thủy** mới bấm được. Có ${WITCH_TIME / 1000} giây.`);
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`ms_witchmenu_${gameMsg.id}`).setLabel('🧙 Xem & Hành Động').setStyle(ButtonStyle.Primary)
-  );
-  await gameMsg.edit({ embeds: [embed], components: [row] });
-
-  await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: WITCH_TIME });
-    collector.on('end', resolve);
+  await gameMsg.edit({
+    embeds: [new EmbedBuilder().setColor('#9933CC').setTitle(`🧙 ĐÊM ${gameData.round} - PHÙ THỦY ĐANG HÀNH ĐỘNG`).setDescription('Phù Thủy đang cân nhắc qua tin nhắn riêng... vui lòng đợi.')],
+    components: []
   });
+
+  const victimName = gameData.wolfVictim ? gameData.participants.get(gameData.wolfVictim) : 'Không ai';
+  const menuEmbed = new EmbedBuilder()
+    .setColor('#9933CC')
+    .setTitle('🧙 HÀNH ĐỘNG CỦA PHÙ THỦY')
+    .setDescription(`Sói đã chọn giết: **${victimName}**\nBạn có ${WITCH_TIME / 1000} giây để quyết định.`);
+  const menuRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ms_witchheal_${gameMsg.id}`).setLabel('💚 Cứu nạn nhân').setStyle(ButtonStyle.Success).setDisabled(gameData.witchHealUsed || !gameData.wolfVictim),
+    new ButtonBuilder().setCustomId(`ms_witchpoisonmenu_${gameMsg.id}`).setLabel('☠️ Dùng thuốc độc').setStyle(ButtonStyle.Danger).setDisabled(gameData.witchPoisonUsed),
+    new ButtonBuilder().setCustomId(`ms_witchskip_${gameMsg.id}`).setLabel('➡️ Bỏ qua').setStyle(ButtonStyle.Secondary)
+  );
+  await sendDM(client, witchId, { embeds: [menuEmbed], components: [menuRow] }, gameMsg.channel, gameData.participants.get(witchId));
+
+  await new Promise(resolve => setTimeout(resolve, WITCH_TIME));
 }
 
 async function resolveNight(gameMsg, store) {
