@@ -1,7 +1,7 @@
 // games/masoi.js
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-const JOIN_TIME = 45000;
+const JOIN_TIME = 15000;
 const MIN_PLAYERS = 3;
 const WOLF_TIME = 20000;
 const GUARD_TIME = 15000;
@@ -11,7 +11,7 @@ const WITCH_TIME = 20000;
 const HUNTER_TIME = 15000;
 const DISCUSSION_TIME = 20000;
 const VOTE_TIME = 20000;
-const WIN_REWARD = 3000;
+const WIN_REWARD = 50000;
 
 const ROLE_META = {
   soi:     { label: 'Sói 🐺', faction: 'soi' },
@@ -24,7 +24,6 @@ const ROLE_META = {
 };
 
 // Vai trò phụ được ưu tiên gán theo thứ tự này, tự dừng khi hết người
-// (VD chỉ 3 người -> chỉ đủ chỗ cho Sói + Tiên Tri + Bác Sĩ, không có Bảo Vệ/Phù Thủy/Thợ Săn/Dân Làng)
 const SPECIAL_ROLE_PRIORITY = ['tientri', 'bacsi', 'thosan', 'phuthuy', 'baove'];
 
 function assignRoles(participantIds) {
@@ -109,6 +108,8 @@ async function startMaSoi(client, message, store) {
     hunterRevengeTarget: null
   });
 
+  // Đây là lần EDIT duy nhất trong cả game - bắt buộc về mặt kỹ thuật vì lúc gửi tin nhắn
+  // chưa thể biết trước ID của chính nó để gắn vào customId của nút.
   await gameMsg.edit({
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`ms_join_${gameMsg.id}`).setLabel('🙋 Tham gia').setStyle(ButtonStyle.Success)
@@ -125,11 +126,7 @@ async function startMaSoi(client, message, store) {
 
   if (gameData.participants.size < MIN_PLAYERS) {
     store.activeMaSoiGames.delete(gameMsg.id);
-    return gameMsg.edit({
-      content: `❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`,
-      embeds: [],
-      components: []
-    });
+    return gameMsg.channel.send(`❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`);
   }
 
   gameData.roles = assignRoles([...gameData.participants.keys()]);
@@ -145,9 +142,8 @@ async function startMaSoi(client, message, store) {
     );
   }
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle('🐺 GAME MA SÓI - BẮT ĐẦU!').setDescription('Vai trò đã được gửi riêng qua tin nhắn (DM) cho từng người! Đêm đầu tiên bắt đầu...')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle('🐺 GAME MA SÓI - BẮT ĐẦU!').setDescription('Vai trò đã được gửi riêng qua tin nhắn (DM) cho từng người! Đêm đầu tiên bắt đầu...')]
   });
 
   await runGameLoop(gameMsg, store, client);
@@ -192,9 +188,8 @@ async function runGameLoop(gameMsg, store, client) {
 
 async function nightAnnounce(gameMsg, store) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#000033').setTitle(`🌙 ĐÊM ${gameData.round} BẮT ĐẦU`).setDescription('Trời tối dần... mọi người nhắm mắt lại... (những ai có vai trò đặc biệt hãy chú ý tin nhắn riêng)')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#000033').setTitle(`🌙 ĐÊM ${gameData.round} BẮT ĐẦU`).setDescription('Trời tối dần... mọi người nhắm mắt lại... (những ai có vai trò đặc biệt hãy chú ý tin nhắn riêng)')]
   });
   await new Promise(resolve => setTimeout(resolve, 3000));
 }
@@ -205,19 +200,18 @@ async function wolfPhase(gameMsg, store, client) {
   gameData.wolfVictim = null;
   if (aliveWolves.length === 0) return;
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle(`🐺 ĐÊM ${gameData.round} - SÓI ĐANG HÀNH ĐỘNG`).setDescription('Sói đang bí mật chọn nạn nhân qua tin nhắn riêng... vui lòng đợi.')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle(`🐺 ĐÊM ${gameData.round} - SÓI ĐANG HÀNH ĐỘNG`).setDescription('Sói đang bí mật chọn nạn nhân qua tin nhắn riêng... vui lòng đợi.')]
   });
 
-  const targets = [...gameData.alive];
   const embed = new EmbedBuilder()
     .setColor('#8B0000')
     .setTitle(`🐺 ĐÊM ${gameData.round} - CHỌN NẠN NHÂN`)
-    .setDescription(`Bạn có ${WOLF_TIME / 1000} giây để chọn 1 người sẽ bị tấn công đêm nay.`);
-  const rows = buildPlayerButtons('ms_wolf', gameMsg.id, gameData, targets);
+    .setDescription(`Bạn có ${WOLF_TIME / 1000} giây để chọn 1 người sẽ bị tấn công đêm nay (không thể chọn chính mình).`);
 
   for (const wolfId of aliveWolves) {
+    const targets = [...gameData.alive].filter(uid => uid !== wolfId); // Sói không thể tự giết chính mình
+    const rows = buildPlayerButtons('ms_wolf', gameMsg.id, gameData, targets);
     await sendDM(client, wolfId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(wolfId));
   }
 
@@ -243,9 +237,8 @@ async function guardPhase(gameMsg, store, client) {
   const targets = [...gameData.alive].filter(uid => uid !== guardId && uid !== gameData.prevGuardTarget);
   if (targets.length === 0) return;
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#4444FF').setTitle(`🛡️ ĐÊM ${gameData.round} - BẢO VỆ ĐANG HÀNH ĐỘNG`).setDescription('Bảo Vệ đang chọn người để bảo vệ qua tin nhắn riêng... vui lòng đợi.')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#4444FF').setTitle(`🛡️ ĐÊM ${gameData.round} - BẢO VỆ ĐANG HÀNH ĐỘNG`).setDescription('Bảo Vệ đang chọn người để bảo vệ qua tin nhắn riêng... vui lòng đợi.')]
   });
 
   const embed = new EmbedBuilder()
@@ -268,9 +261,8 @@ async function doctorPhase(gameMsg, store, client) {
   gameData.doctorTarget = null;
   if (!doctorId) return;
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#22CC22').setTitle(`💊 ĐÊM ${gameData.round} - BÁC SĨ ĐANG HÀNH ĐỘNG`).setDescription('Bác Sĩ đang chọn người để cứu qua tin nhắn riêng... vui lòng đợi.')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#22CC22').setTitle(`💊 ĐÊM ${gameData.round} - BÁC SĨ ĐANG HÀNH ĐỘNG`).setDescription('Bác Sĩ đang chọn người để cứu qua tin nhắn riêng... vui lòng đợi.')]
   });
 
   const targets = [...gameData.alive];
@@ -293,9 +285,8 @@ async function seerPhase(gameMsg, store, client) {
   const targets = [...gameData.alive].filter(uid => uid !== seerId);
   if (targets.length === 0) return;
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#CC66FF').setTitle(`🔮 ĐÊM ${gameData.round} - TIÊN TRI ĐANG HÀNH ĐỘNG`).setDescription('Tiên Tri đang soi vai trò qua tin nhắn riêng... vui lòng đợi.')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#CC66FF').setTitle(`🔮 ĐÊM ${gameData.round} - TIÊN TRI ĐANG HÀNH ĐỘNG`).setDescription('Tiên Tri đang soi vai trò qua tin nhắn riêng... vui lòng đợi.')]
   });
 
   const embed = new EmbedBuilder()
@@ -315,9 +306,8 @@ async function witchPhase(gameMsg, store, client) {
   if (!witchId) return;
   if (gameData.witchHealUsed && gameData.witchPoisonUsed) return;
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#9933CC').setTitle(`🧙 ĐÊM ${gameData.round} - PHÙ THỦY ĐANG HÀNH ĐỘNG`).setDescription('Phù Thủy đang cân nhắc qua tin nhắn riêng... vui lòng đợi.')],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#9933CC').setTitle(`🧙 ĐÊM ${gameData.round} - PHÙ THỦY ĐANG HÀNH ĐỘNG`).setDescription('Phù Thủy đang cân nhắc qua tin nhắn riêng... vui lòng đợi.')]
   });
 
   const victimName = gameData.wolfVictim ? gameData.participants.get(gameData.wolfVictim) : 'Không ai';
@@ -364,9 +354,8 @@ async function resolveNight(gameMsg, store) {
       died.map(id => `☠️ **${gameData.participants.get(id)}** (${ROLE_META[gameData.roles.get(id)].label})`).join('\n');
   }
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#FFAA00').setTitle(`🌅 KẾT QUẢ ĐÊM ${gameData.round}`).setDescription(desc)],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#FFAA00').setTitle(`🌅 KẾT QUẢ ĐÊM ${gameData.round}`).setDescription(desc)]
   });
 
   return died;
@@ -383,13 +372,13 @@ async function handleDeathTriggers(gameMsg, store, deadId) {
   gameData.pendingHunterId = deadId;
   gameData.hunterRevengeTarget = null;
 
-  await gameMsg.edit({
+  const huntMsg = await gameMsg.channel.send({
     embeds: [new EmbedBuilder().setColor('#FF6600').setTitle('🏹 THỢ SĂN TRẢ THÙ!').setDescription(`**${gameData.participants.get(deadId)}** là Thợ Săn! Có ${HUNTER_TIME / 1000} giây để bắn hạ 1 người trước khi ngã xuống.`)],
     components: buildPlayerButtons('ms_hunter', gameMsg.id, gameData, targets)
   });
 
   await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: HUNTER_TIME });
+    const collector = huntMsg.createMessageComponentCollector({ time: HUNTER_TIME });
     collector.on('end', resolve);
   });
 
@@ -399,9 +388,8 @@ async function handleDeathTriggers(gameMsg, store, deadId) {
 
   if (revengeTarget && gameData.alive.has(revengeTarget)) {
     gameData.alive.delete(revengeTarget);
-    await gameMsg.edit({
-      embeds: [new EmbedBuilder().setColor('#FF0000').setTitle('🏹 PHÁT SÚNG CUỐI CÙNG').setDescription(`💥 **${gameData.participants.get(revengeTarget)}** đã bị Thợ Săn bắn hạ!`)],
-      components: []
+    await gameMsg.channel.send({
+      embeds: [new EmbedBuilder().setColor('#FF0000').setTitle('🏹 PHÁT SÚNG CUỐI CÙNG').setDescription(`💥 **${gameData.participants.get(revengeTarget)}** đã bị Thợ Săn bắn hạ!`)]
     });
     await handleDeathTriggers(gameMsg, store, revengeTarget);
   }
@@ -440,9 +428,8 @@ async function checkWinAndAnnounce(gameMsg, store) {
 }
 
 async function dayDiscussion(gameMsg, store) {
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#FFCC00').setTitle('💬 THẢO LUẬN').setDescription(`Mọi người có ${DISCUSSION_TIME / 1000} giây để thảo luận trước khi vote treo cổ!`)],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#FFCC00').setTitle('💬 THẢO LUẬN').setDescription(`Mọi người có ${DISCUSSION_TIME / 1000} giây để thảo luận trước khi vote treo cổ!`)]
   });
   await new Promise(resolve => setTimeout(resolve, DISCUSSION_TIME));
 }
@@ -452,13 +439,13 @@ async function votePhase(gameMsg, store) {
   gameData.votes = new Map();
 
   const targets = [...gameData.alive];
-  await gameMsg.edit({
+  const voteMsg = await gameMsg.channel.send({
     embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ BỎ PHIẾU TREO CỔ').setDescription(`Mọi người còn sống hãy vote 1 người để treo cổ! Có ${VOTE_TIME / 1000} giây.`)],
     components: buildPlayerButtons('ms_vote', gameMsg.id, gameData, targets)
   });
 
   await new Promise(resolve => {
-    const collector = gameMsg.createMessageComponentCollector({ time: VOTE_TIME });
+    const collector = voteMsg.createMessageComponentCollector({ time: VOTE_TIME });
     collector.on('end', resolve);
   });
 
@@ -472,9 +459,8 @@ async function votePhase(gameMsg, store) {
   });
 
   if (tied.length === 0) {
-    await gameMsg.edit({
-      embeds: [new EmbedBuilder().setColor('#888888').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription('Không ai bị treo cổ (không có phiếu nào)!')],
-      components: []
+    await gameMsg.channel.send({
+      embeds: [new EmbedBuilder().setColor('#888888').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription('Không ai bị treo cổ (không có phiếu nào)!')]
     });
     return null;
   }
@@ -482,12 +468,11 @@ async function votePhase(gameMsg, store) {
   const lynchedId = tied[Math.floor(Math.random() * tied.length)];
   gameData.alive.delete(lynchedId);
 
-  await gameMsg.edit({
-    embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription(`💀 **${gameData.participants.get(lynchedId)}** (${ROLE_META[gameData.roles.get(lynchedId)].label}) đã bị treo cổ!`)],
-    components: []
+  await gameMsg.channel.send({
+    embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription(`💀 **${gameData.participants.get(lynchedId)}** (${ROLE_META[gameData.roles.get(lynchedId)].label}) đã bị treo cổ!`)]
   });
 
   return lynchedId;
 }
 
-module.exports = { startMaSoi, assignRoles, ROLE_META, MIN_PLAYERS };
+module.exports = { startMaSoi, assignRoles, ROLE_META, MIN_PLAYERS, WIN_REWARD };
