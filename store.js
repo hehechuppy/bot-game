@@ -9,6 +9,7 @@ const leaderboardMap = new Map();
 const activeBauCuaGames = new Map();
 const activeTungXuGames = new Map();
 const activeDoanBomGames = new Map();
+const activeMaSoiGames = new Map();
 let backupChannelId = '1492795870012379147';
 
 function getDailyData(userId) {
@@ -67,6 +68,7 @@ module.exports = {
     activeBauCuaGames,
     activeTungXuGames,
     activeDoanBomGames,
+    activeMaSoiGames,
     getDailyData,
     addTungXu,
     addLeaderboardScore,
