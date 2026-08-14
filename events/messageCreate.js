@@ -5,6 +5,7 @@ const { createLeaderboardImage } = require('../utils/canvas');
 const { startBauCua } = require('../games/baucua');
 const { startTungXu } = require('../games/tungxu');
 const { startDoanBom } = require('../games/doanbom');
+const { startMaSoi } = require('../games/masoi');
 
 module.exports = {
   name: 'messageCreate',
@@ -25,7 +26,7 @@ module.exports = {
         .setTitle('🤖 TRUNG TÂM HƯỚNG DẪN')
         .addFields(
           { name: '💰 Kinh Tế', value: '`.tien`, `.diemdanh`, `.daily`, `.code`, `.nhapcode`, `.donate`', inline: false },
-          { name: '🎰 Trò Chơi', value: '`.tungxu` (.tx), `.baucua` (.bc), `.doanbom` (.bom)', inline: false },
+          { name: '🎰 Trò Chơi', value: '`.tungxu` (.tx), `.baucua` (.bc), `.doanbom` (.bom), `.masoi` (.ms)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh`', inline: false },
         );
       return message.reply({ embeds: [helpEmbed] });
@@ -105,6 +106,7 @@ module.exports = {
     if (['baucua','bc'].includes(command)) return startBauCua(client, message, store);
     if (['tungxu','tx'].includes(command)) return startTungXu(client, message, store);
     if (['doanbom','bom'].includes(command)) return startDoanBom(client, message, store);
+    if (['masoi','ms'].includes(command)) return startMaSoi(client, message, store);
 
     if (command === 'tien' || command === 'sodu') {
       const bal = store.economyMap.get(userId) || 0;
