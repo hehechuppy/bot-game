@@ -222,7 +222,7 @@ module.exports = {
           const updatedEmbed = new EmbedBuilder()
             .setColor('#8B0000')
             .setTitle('🐺 GAME MA SÓI 🌕')
-            .setDescription(`Bấm nút bên dưới để tham gia! Cần tối thiểu 7 người.\n\n👥 Đã tham gia: **${gameData.participants.size}** người\n` + Array.from(gameData.participants.values()).map(n => `• ${n}`).join('\n'));
+            .setDescription(`Bấm nút bên dưới để tham gia! Cần tối thiểu 3 người.\n\n👥 Đã tham gia: **${gameData.participants.size}** người\n` + Array.from(gameData.participants.values()).map(n => `• ${n}`).join('\n'));
           const joinRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`ms_join_${gameMsgId}`).setLabel('🙋 Tham gia').setStyle(ButtonStyle.Success)
           );
@@ -231,68 +231,53 @@ module.exports = {
 
         const myRole = gameData.roles.get(userId);
 
+        // Từ đây trở đi, mọi hành động (Sói/Bảo Vệ/Bác Sĩ/Tiên Tri/Phù Thủy) đều diễn ra
+        // trong tin nhắn riêng (DM) mà bot gửi cho từng người, nên không cần ephemeral nữa
+        // (interaction lúc này đã ở trong ngữ cảnh DM, vốn đã riêng tư sẵn).
+
         if (action === 'wolf') {
           if (myRole !== 'soi' || !gameData.alive.has(userId)) {
-            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!' });
           }
           const targetId = parts[2];
           gameData.wolfVotes.set(userId, targetId);
-          return interaction.reply({ content: `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+          return interaction.reply({ content: `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!` });
         }
 
         if (action === 'guard') {
           if (myRole !== 'baove' || !gameData.alive.has(userId)) {
-            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!' });
           }
           const targetId = parts[2];
           gameData.guardTarget = targetId;
-          return interaction.reply({ content: `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+          return interaction.reply({ content: `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!` });
         }
 
         if (action === 'doctor') {
           if (myRole !== 'bacsi' || !gameData.alive.has(userId)) {
-            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!' });
           }
           const targetId = parts[2];
           gameData.doctorTarget = targetId;
-          return interaction.reply({ content: `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+          return interaction.reply({ content: `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!` });
         }
 
         if (action === 'seer') {
           if (myRole !== 'tientri' || !gameData.alive.has(userId)) {
-            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!' });
           }
           if (gameData.seerActed) {
-            return interaction.reply({ content: '❌ Bạn đã soi rồi đêm nay!', ephemeral: true });
+            return interaction.reply({ content: '❌ Bạn đã soi rồi đêm nay!' });
           }
           gameData.seerActed = true;
           const targetId = parts[2];
           const isWolf = gameData.roles.get(targetId) === 'soi';
           return interaction.reply({
-            content: `🔮 **${gameData.participants.get(targetId)}** ${isWolf ? 'LÀ SÓI 🐺!' : 'không phải Sói ✅'}`,
-            ephemeral: true
+            content: `🔮 **${gameData.participants.get(targetId)}** ${isWolf ? 'LÀ SÓI 🐺!' : 'không phải Sói ✅'}`
           });
         }
 
-        if (action === 'witchmenu') {
-          if (myRole !== 'phuthuy' || !gameData.alive.has(userId)) {
-            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
-          }
-          if (gameData.witchActedTonight) {
-            return interaction.reply({ content: '❌ Bạn đã hành động rồi đêm nay!', ephemeral: true });
-          }
-          const victimName = gameData.wolfVictim ? gameData.participants.get(gameData.wolfVictim) : 'Không ai';
-          const menuEmbed = new EmbedBuilder()
-            .setColor('#9933CC')
-            .setTitle('🧙 HÀNH ĐỘNG CỦA PHÙ THỦY')
-            .setDescription(`Sói đã chọn giết: **${victimName}**`);
-          const menuRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`ms_witchheal_${gameMsgId}`).setLabel('💚 Cứu nạn nhân').setStyle(ButtonStyle.Success).setDisabled(gameData.witchHealUsed || !gameData.wolfVictim),
-            new ButtonBuilder().setCustomId(`ms_witchpoisonmenu_${gameMsgId}`).setLabel('☠️ Dùng thuốc độc').setStyle(ButtonStyle.Danger).setDisabled(gameData.witchPoisonUsed),
-            new ButtonBuilder().setCustomId(`ms_witchskip_${gameMsgId}`).setLabel('➡️ Bỏ qua').setStyle(ButtonStyle.Secondary)
-          );
-          return interaction.reply({ embeds: [menuEmbed], components: [menuRow], ephemeral: true });
-        }
+        // --- Phù Thủy: menu (Cứu / Độc / Bỏ qua) được gửi thẳng qua DM, bấm trực tiếp các nút bên dưới ---
 
         if (action === 'witchheal') {
           if (myRole !== 'phuthuy' || gameData.witchActedTonight || gameData.witchHealUsed || !gameData.wolfVictim) {
@@ -327,6 +312,8 @@ module.exports = {
           gameData.witchActedTonight = true;
           return interaction.update({ content: '➡️ Bạn đã bỏ qua lượt này.', embeds: [], components: [] });
         }
+
+        // --- Các hành động sau đây vẫn diễn ra công khai trong kênh (ban ngày) nên vẫn giữ ephemeral ---
 
         if (action === 'vote') {
           if (!gameData.alive.has(userId)) {
