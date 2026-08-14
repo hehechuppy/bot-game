@@ -2,6 +2,22 @@
 const { EmbedBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, ModalBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const store = require('../store');
 
+function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
+  const rows = [];
+  let row = new ActionRowBuilder();
+  let count = 0;
+  for (const uid of targetIds.slice(0, 25)) {
+    if (count === 5) { rows.push(row); row = new ActionRowBuilder(); count = 0; }
+    const name = gameData.participants.get(uid) || 'Người chơi';
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`${prefix}_${uid}_${gameMsgId}`).setLabel(name.slice(0, 80)).setStyle(ButtonStyle.Secondary)
+    );
+    count++;
+  }
+  if (count > 0) rows.push(row);
+  return rows;
+}
+
 module.exports = {
   name: 'interactionCreate',
   async execute(client, interaction) {
@@ -187,6 +203,151 @@ module.exports = {
         const cellIndex = parseInt(interaction.customId.replace('bom_cell_', ''));
         gameData.picks.set(userId, cellIndex);
         return interaction.reply({ content: `✅ Bạn đã chọn ô số **${cellIndex + 1}**!`, ephemeral: true });
+      }
+
+      // ================= GAME MA SÓI =================
+      if (interaction.customId.startsWith('ms_')) {
+        const parts = interaction.customId.split('_');
+        const gameMsgId = parts[parts.length - 1];
+        const action = parts[1];
+        const gameData = store.activeMaSoiGames.get(gameMsgId);
+        if (!gameData) return interaction.reply({ content: '❌ Ván Ma Sói này đã kết thúc!', ephemeral: true });
+
+        const userId = interaction.user.id;
+
+        if (action === 'join') {
+          if (gameData.phase !== 'joining') return interaction.reply({ content: '❌ Không thể tham gia lúc này!', ephemeral: true });
+          if (gameData.participants.has(userId)) return interaction.reply({ content: '❌ Bạn đã tham gia rồi!', ephemeral: true });
+          gameData.participants.set(userId, interaction.user.username);
+          const updatedEmbed = new EmbedBuilder()
+            .setColor('#8B0000')
+            .setTitle('🐺 GAME MA SÓI 🌕')
+            .setDescription(`Bấm nút bên dưới để tham gia! Cần tối thiểu 7 người.\n\n👥 Đã tham gia: **${gameData.participants.size}** người\n` + Array.from(gameData.participants.values()).map(n => `• ${n}`).join('\n'));
+          const joinRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`ms_join_${gameMsgId}`).setLabel('🙋 Tham gia').setStyle(ButtonStyle.Success)
+          );
+          return interaction.update({ embeds: [updatedEmbed], components: [joinRow] });
+        }
+
+        const myRole = gameData.roles.get(userId);
+
+        if (action === 'wolf') {
+          if (myRole !== 'soi' || !gameData.alive.has(userId)) {
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+          }
+          const targetId = parts[2];
+          gameData.wolfVotes.set(userId, targetId);
+          return interaction.reply({ content: `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+        }
+
+        if (action === 'guard') {
+          if (myRole !== 'baove' || !gameData.alive.has(userId)) {
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+          }
+          const targetId = parts[2];
+          gameData.guardTarget = targetId;
+          return interaction.reply({ content: `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+        }
+
+        if (action === 'doctor') {
+          if (myRole !== 'bacsi' || !gameData.alive.has(userId)) {
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+          }
+          const targetId = parts[2];
+          gameData.doctorTarget = targetId;
+          return interaction.reply({ content: `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+        }
+
+        if (action === 'seer') {
+          if (myRole !== 'tientri' || !gameData.alive.has(userId)) {
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+          }
+          if (gameData.seerActed) {
+            return interaction.reply({ content: '❌ Bạn đã soi rồi đêm nay!', ephemeral: true });
+          }
+          gameData.seerActed = true;
+          const targetId = parts[2];
+          const isWolf = gameData.roles.get(targetId) === 'soi';
+          return interaction.reply({
+            content: `🔮 **${gameData.participants.get(targetId)}** ${isWolf ? 'LÀ SÓI 🐺!' : 'không phải Sói ✅'}`,
+            ephemeral: true
+          });
+        }
+
+        if (action === 'witchmenu') {
+          if (myRole !== 'phuthuy' || !gameData.alive.has(userId)) {
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+          }
+          if (gameData.witchActedTonight) {
+            return interaction.reply({ content: '❌ Bạn đã hành động rồi đêm nay!', ephemeral: true });
+          }
+          const victimName = gameData.wolfVictim ? gameData.participants.get(gameData.wolfVictim) : 'Không ai';
+          const menuEmbed = new EmbedBuilder()
+            .setColor('#9933CC')
+            .setTitle('🧙 HÀNH ĐỘNG CỦA PHÙ THỦY')
+            .setDescription(`Sói đã chọn giết: **${victimName}**`);
+          const menuRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`ms_witchheal_${gameMsgId}`).setLabel('💚 Cứu nạn nhân').setStyle(ButtonStyle.Success).setDisabled(gameData.witchHealUsed || !gameData.wolfVictim),
+            new ButtonBuilder().setCustomId(`ms_witchpoisonmenu_${gameMsgId}`).setLabel('☠️ Dùng thuốc độc').setStyle(ButtonStyle.Danger).setDisabled(gameData.witchPoisonUsed),
+            new ButtonBuilder().setCustomId(`ms_witchskip_${gameMsgId}`).setLabel('➡️ Bỏ qua').setStyle(ButtonStyle.Secondary)
+          );
+          return interaction.reply({ embeds: [menuEmbed], components: [menuRow], ephemeral: true });
+        }
+
+        if (action === 'witchheal') {
+          if (myRole !== 'phuthuy' || gameData.witchActedTonight || gameData.witchHealUsed || !gameData.wolfVictim) {
+            return interaction.update({ content: '❌ Không thể dùng lúc này!', embeds: [], components: [] });
+          }
+          gameData.witchHealUsed = true;
+          gameData.witchSavedVictim = true;
+          gameData.witchActedTonight = true;
+          return interaction.update({ content: `💚 Đã cứu **${gameData.participants.get(gameData.wolfVictim)}**!`, embeds: [], components: [] });
+        }
+
+        if (action === 'witchpoisonmenu') {
+          if (myRole !== 'phuthuy' || gameData.witchActedTonight || gameData.witchPoisonUsed) {
+            return interaction.update({ content: '❌ Không thể dùng lúc này!', embeds: [], components: [] });
+          }
+          const targets = [...gameData.alive].filter(uid => uid !== userId);
+          return interaction.update({ content: '☠️ Chọn mục tiêu để đầu độc:', embeds: [], components: buildPlayerButtons('ms_witchpoison', gameMsgId, gameData, targets) });
+        }
+
+        if (action === 'witchpoison') {
+          if (myRole !== 'phuthuy' || gameData.witchActedTonight || gameData.witchPoisonUsed) {
+            return interaction.update({ content: '❌ Không thể dùng lúc này!', embeds: [], components: [] });
+          }
+          const targetId = parts[2];
+          gameData.witchPoisonUsed = true;
+          gameData.witchPoisonTarget = targetId;
+          gameData.witchActedTonight = true;
+          return interaction.update({ content: `☠️ Đã đầu độc **${gameData.participants.get(targetId)}**!`, embeds: [], components: [] });
+        }
+
+        if (action === 'witchskip') {
+          gameData.witchActedTonight = true;
+          return interaction.update({ content: '➡️ Bạn đã bỏ qua lượt này.', embeds: [], components: [] });
+        }
+
+        if (action === 'vote') {
+          if (!gameData.alive.has(userId)) {
+            return interaction.reply({ content: '❌ Bạn đã bị loại, không thể vote!', ephemeral: true });
+          }
+          const targetId = parts[2];
+          gameData.votes.set(userId, targetId);
+          return interaction.reply({ content: `✅ Bạn đã vote treo cổ **${gameData.participants.get(targetId)}**!`, ephemeral: true });
+        }
+
+        if (action === 'hunter') {
+          if (gameData.pendingHunterId !== userId) {
+            return interaction.reply({ content: '❌ Đây không phải lượt của bạn!', ephemeral: true });
+          }
+          const targetId = parts[2];
+          gameData.hunterRevengeTarget = targetId;
+          gameData.pendingHunterId = null;
+          return interaction.reply({ content: `🏹 Bạn đã bắn hạ **${gameData.participants.get(targetId)}** trước khi ngã xuống!`, ephemeral: true });
+        }
+
+        return;
       }
 
       return;
