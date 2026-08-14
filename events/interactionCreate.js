@@ -215,25 +215,28 @@ module.exports = {
 
         const userId = interaction.user.id;
 
+        // --- Tham gia: xác nhận riêng cho người bấm, rồi GỬI TIN NHẮN MỚI công khai cập nhật danh sách ---
         if (action === 'join') {
           if (gameData.phase !== 'joining') return interaction.reply({ content: '❌ Không thể tham gia lúc này!', ephemeral: true });
           if (gameData.participants.has(userId)) return interaction.reply({ content: '❌ Bạn đã tham gia rồi!', ephemeral: true });
           gameData.participants.set(userId, interaction.user.username);
+
+          await interaction.reply({ content: '✅ Bạn đã tham gia ván Ma Sói!', ephemeral: true });
+
           const updatedEmbed = new EmbedBuilder()
             .setColor('#8B0000')
             .setTitle('🐺 GAME MA SÓI 🌕')
-            .setDescription(`Bấm nút bên dưới để tham gia! Cần tối thiểu 3 người.\n\n👥 Đã tham gia: **${gameData.participants.size}** người\n` + Array.from(gameData.participants.values()).map(n => `• ${n}`).join('\n'));
+            .setDescription(`👥 Đã tham gia: **${gameData.participants.size}** người\n` + Array.from(gameData.participants.values()).map(n => `• ${n}`).join('\n'));
           const joinRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`ms_join_${gameMsgId}`).setLabel('🙋 Tham gia').setStyle(ButtonStyle.Success)
           );
-          return interaction.update({ embeds: [updatedEmbed], components: [joinRow] });
+          return interaction.channel.send({ embeds: [updatedEmbed], components: [joinRow] });
         }
 
         const myRole = gameData.roles.get(userId);
 
         // Từ đây trở đi, mọi hành động (Sói/Bảo Vệ/Bác Sĩ/Tiên Tri/Phù Thủy) đều diễn ra
-        // trong tin nhắn riêng (DM) mà bot gửi cho từng người, nên không cần ephemeral nữa
-        // (interaction lúc này đã ở trong ngữ cảnh DM, vốn đã riêng tư sẵn).
+        // trong tin nhắn riêng (DM) mà bot gửi cho từng người.
 
         if (action === 'wolf') {
           if (myRole !== 'soi' || !gameData.alive.has(userId)) {
