@@ -12,6 +12,71 @@ const activeDoanBomGames = new Map();
 const activeMaSoiGames = new Map();
 let backupChannelId = '1492795870012379147';
 
+// ================= SHOP / VẬT PHẨM =================
+const SHOP_ITEMS = [
+    {
+        id: 1,
+        name: 'X3 Tiền',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt.',
+        price: 1000000,
+        uses: 5,
+        multiplier: 3
+    }
+];
+
+const inventoryMap = new Map();   // userId -> Map<itemId, soLuong>
+const activeBuffsMap = new Map(); // userId -> { itemId, usesLeft, multiplier }
+
+function addToInventory(userId, itemId, amount) {
+    if (!inventoryMap.has(userId)) inventoryMap.set(userId, new Map());
+    const inv = inventoryMap.get(userId);
+    inv.set(itemId, (inv.get(itemId) || 0) + amount);
+}
+
+function getInventory(userId) {
+    return inventoryMap.get(userId) || new Map();
+}
+
+// Kích hoạt 1 vật phẩm từ túi đồ (trừ 1 khỏi kho, cộng lượt vào buff đang có nếu cùng loại)
+function useItem(userId, itemId) {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) return { success: false, reason: 'not_found' };
+
+    const inv = inventoryMap.get(userId);
+    const qty = inv ? (inv.get(itemId) || 0) : 0;
+    if (qty <= 0) return { success: false, reason: 'no_item' };
+
+    inv.set(itemId, qty - 1);
+    if (inv.get(itemId) <= 0) inv.delete(itemId);
+
+    const existing = activeBuffsMap.get(userId);
+    if (existing && existing.itemId === itemId) {
+        existing.usesLeft += item.uses;
+    } else {
+        activeBuffsMap.set(userId, { itemId: item.id, usesLeft: item.uses, multiplier: item.multiplier });
+    }
+
+    return { success: true, item, buff: activeBuffsMap.get(userId) };
+}
+
+// Gọi đúng 1 lần mỗi ván (Bầu Cua/Tung Xu) cho mỗi người chơi, BẤT KỂ thắng hay thua.
+// Trả về hệ số nhân cần áp dụng (3 nếu đang có buff, 1 nếu không). Tự trừ lượt, tự tắt khi hết.
+function consumeBuffIfActive(userId) {
+    const buff = activeBuffsMap.get(userId);
+    if (!buff) return 1;
+
+    buff.usesLeft -= 1;
+    const multiplier = buff.multiplier;
+    if (buff.usesLeft <= 0) {
+        activeBuffsMap.delete(userId);
+    }
+    return multiplier;
+}
+
+function getActiveBuff(userId) {
+    return activeBuffsMap.get(userId) || null;
+}
+
 function getDailyData(userId) {
     const today = new Date().toDateString();
     let data = dailyDataMap.get(userId);
@@ -69,6 +134,14 @@ module.exports = {
     activeTungXuGames,
     activeDoanBomGames,
     activeMaSoiGames,
+    SHOP_ITEMS,
+    inventoryMap,
+    activeBuffsMap,
+    addToInventory,
+    getInventory,
+    useItem,
+    consumeBuffIfActive,
+    getActiveBuff,
     getDailyData,
     addTungXu,
     addLeaderboardScore,
