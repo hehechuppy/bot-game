@@ -58,7 +58,6 @@ async function startBauCua(client, message, store) {
         }
       });
 
-      // Mỗi ván (bất kể thắng/thua) đều tiêu 1 lượt buff nếu người chơi đang có hiệu lực X3
       const multiplier = store.consumeBuffIfActive(pId);
       let buffTag = '';
       if (multiplier > 1 && totalWin > 0) {
