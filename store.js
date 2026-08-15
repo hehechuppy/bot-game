@@ -37,7 +37,6 @@ function getInventory(userId) {
     return inventoryMap.get(userId) || new Map();
 }
 
-// Kích hoạt 1 vật phẩm từ túi đồ (trừ 1 khỏi kho, cộng lượt vào buff đang có nếu cùng loại)
 function useItem(userId, itemId) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return { success: false, reason: 'not_found' };
@@ -59,8 +58,6 @@ function useItem(userId, itemId) {
     return { success: true, item, buff: activeBuffsMap.get(userId) };
 }
 
-// Gọi đúng 1 lần mỗi ván (Bầu Cua/Tung Xu) cho mỗi người chơi, BẤT KỂ thắng hay thua.
-// Trả về hệ số nhân cần áp dụng (3 nếu đang có buff, 1 nếu không). Tự trừ lượt, tự tắt khi hết.
 function consumeBuffIfActive(userId) {
     const buff = activeBuffsMap.get(userId);
     if (!buff) return 1;
