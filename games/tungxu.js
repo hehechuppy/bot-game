@@ -30,12 +30,21 @@ async function startTungXu(client, message, store) {
       pDaily.games++;
 
       const win = (data.choice === result);
+
+      // Mỗi ván (bất kể thắng/thua) đều tiêu 1 lượt buff nếu người chơi đang có hiệu lực X3
+      const multiplier = store.consumeBuffIfActive(pId);
+
       if (win) {
-        const reward = data.bet * 2;
+        let reward = data.bet * 2;
+        let buffTag = '';
+        if (multiplier > 1) {
+          reward *= multiplier;
+          buffTag = ` 🔥(x${multiplier})`;
+        }
         store.addTungXu(pId, reward);
-        summary.push(`• **${data.username}** thắng +${reward} Mcoin`);
+        summary.push(`• **${data.username}** thắng +${reward.toLocaleString()} Mcoin${buffTag}`);
       } else {
-        summary.push(`• **${data.username}** thua -${data.bet} Mcoin`);
+        summary.push(`• **${data.username}** thua -${data.bet.toLocaleString()} Mcoin`);
       }
     });
 
