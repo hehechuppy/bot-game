@@ -58,11 +58,19 @@ async function startBauCua(client, message, store) {
         }
       });
 
+      // Mỗi ván (bất kể thắng/thua) đều tiêu 1 lượt buff nếu người chơi đang có hiệu lực X3
+      const multiplier = store.consumeBuffIfActive(pId);
+      let buffTag = '';
+      if (multiplier > 1 && totalWin > 0) {
+        totalWin *= multiplier;
+        buffTag = ` 🔥(x${multiplier})`;
+      }
+
       if (totalWin > 0) store.addTungXu(pId, totalWin);
 
       const net = totalWin - totalLoss;
       const netStr = net >= 0 ? `+${net.toLocaleString()}` : `${net.toLocaleString()}`;
-      summary.push(`• **${data.username}**: ${betLines.join(', ')} → Tổng: **${netStr} Mcoin**`);
+      summary.push(`• **${data.username}**: ${betLines.join(', ')} → Tổng: **${netStr} Mcoin**${buffTag}`);
     });
 
     const resEmbed = new EmbedBuilder()
