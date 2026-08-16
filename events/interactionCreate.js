@@ -446,7 +446,7 @@ module.exports = {
       return;
     }
   },
-};ent: '❌ Sòng đã kết thúc!', ephemeral: true });
+}; (!gameData) return interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true });
 
         const betAmount = parseInt(interaction.fields.getTextInputValue('tx_bet_input'));
         if (isNaN(betAmount) || betAmount <= 0) return interaction.reply({ content: '❌ Tiền cược không hợp lệ!', ephemeral: true });
