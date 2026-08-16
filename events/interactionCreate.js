@@ -21,14 +21,33 @@ function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
 module.exports = {
   name: 'interactionCreate',
   async execute(client, interaction) {
+    // ================= AUTOCOMPLETE =================
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === 'xoacode') {
+        const focusedValue = interaction.options.getFocused();
+        const allCodes = Array.from(store.customCodesMap.keys());
+        
+        const filtered = allCodes
+          .filter(code => code.toLowerCase().includes(focusedValue.toLowerCase()))
+          .slice(0, 25);
+        
+        const choices = filtered.map(code => ({
+          name: `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
+          value: code
+        }));
+        
+        return interaction.respond(choices);
+      }
+      return;
+    }
+
     // ================= SLASH COMMANDS =================
     if (interaction.isChatInputCommand()) {
       const { commandName } = interaction;
       const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-      const hasAllowedRole = false; // set role check if needed
 
       if (commandName === 'taocode') {
-        if (!isAdmin && !hasAllowedRole) {
+        if (!isAdmin) {
           return interaction.reply({ content: '❌ Bạn không có quyền sử dụng lệnh tạo mã code này!', ephemeral: true });
         }
         const codeName = interaction.options.getString('code').toLowerCase().trim();
@@ -49,6 +68,39 @@ module.exports = {
           .setTitle('🎟️ TẠO MÃ CODE THÀNH CÔNG')
           .setDescription(`• Mã: \`${codeName}\`\n• Phần thưởng: **+${rewardAmount.toLocaleString()} Mcoin**\n• Thời hạn: **${timeStr}**`);
 
+        return interaction.reply({ embeds: [successEmbed] });
+      }
+
+      if (commandName === 'xoacode') {
+        if (!isAdmin) {
+          return interaction.reply({ 
+            content: '❌ Bạn không có quyền sử dụng lệnh xóa code này!', 
+            ephemeral: true 
+          });
+        }
+        
+        const codeName = interaction.options.getString('code').toLowerCase().trim();
+        
+        if (!store.customCodesMap.has(codeName)) {
+          return interaction.reply({ 
+            content: `❌ Mã code \`${codeName}\` không tồn tại!`, 
+            ephemeral: true 
+          });
+        }
+        
+        const deletedCode = store.customCodesMap.get(codeName);
+        store.customCodesMap.delete(codeName);
+        
+        const successEmbed = new EmbedBuilder()
+          .setColor('#FF4444')
+          .setTitle('🗑️ ĐÃ XÓA MÃ CODE')
+          .setDescription(
+            `• Mã: \`${codeName}\`\n` +
+            `• Phần thưởng cũ: **+${deletedCode.reward.toLocaleString()} Mcoin**\n` +
+            `• Người xóa: ${interaction.user.username}`
+          )
+          .setTimestamp();
+        
         return interaction.reply({ embeds: [successEmbed] });
       }
 
@@ -116,7 +168,7 @@ module.exports = {
         return interaction.reply({ content: `🎉 Chúc mừng bạn đã hoàn thành nhiệm vụ hằng ngày và nhận được **+${rewardBonus.toLocaleString()} Mcoin** phần thưởng!`, ephemeral: true });
       }
 
-      // --- Chọn linh vật Bầu Cua -> mở modal nhập cược (có thể bấm nhiều lần) ---
+      // --- Chọn linh vật Bầu Cua -> mở modal nhập cược ---
       if (interaction.customId.startsWith('bc_')) {
         const gameData = store.activeBauCuaGames.get(interaction.message.id);
         if (!gameData) return interaction.reply({ content: '❌ Sòng Bầu Cua này đã kết thúc!', ephemeral: true });
@@ -215,7 +267,6 @@ module.exports = {
 
         const userId = interaction.user.id;
 
-        // --- Tham gia: xác nhận riêng cho người bấm, rồi GỬI TIN NHẮN MỚI công khai cập nhật danh sách ---
         if (action === 'join') {
           if (gameData.phase !== 'joining') return interaction.reply({ content: '❌ Không thể tham gia lúc này!', ephemeral: true });
           if (gameData.participants.has(userId)) return interaction.reply({ content: '❌ Bạn đã tham gia rồi!', ephemeral: true });
@@ -234,9 +285,6 @@ module.exports = {
         }
 
         const myRole = gameData.roles.get(userId);
-
-        // Từ đây trở đi, mọi hành động (Sói/Bảo Vệ/Bác Sĩ/Tiên Tri/Phù Thủy) đều diễn ra
-        // trong tin nhắn riêng (DM) mà bot gửi cho từng người.
 
         if (action === 'wolf') {
           if (myRole !== 'soi' || !gameData.alive.has(userId)) {
@@ -280,8 +328,6 @@ module.exports = {
           });
         }
 
-        // --- Phù Thủy: menu (Cứu / Độc / Bỏ qua) được gửi thẳng qua DM, bấm trực tiếp các nút bên dưới ---
-
         if (action === 'witchheal') {
           if (myRole !== 'phuthuy' || gameData.witchActedTonight || gameData.witchHealUsed || !gameData.wolfVictim) {
             return interaction.update({ content: '❌ Không thể dùng lúc này!', embeds: [], components: [] });
@@ -316,8 +362,6 @@ module.exports = {
           return interaction.update({ content: '➡️ Bạn đã bỏ qua lượt này.', embeds: [], components: [] });
         }
 
-        // --- Các hành động sau đây vẫn diễn ra công khai trong kênh (ban ngày) nên vẫn giữ ephemeral ---
-
         if (action === 'vote') {
           if (!gameData.alive.has(userId)) {
             return interaction.reply({ content: '❌ Bạn đã bị loại, không thể vote!', ephemeral: true });
@@ -345,7 +389,6 @@ module.exports = {
 
     // ================= MODALS =================
     if (interaction.isModalSubmit()) {
-      // --- Modal đặt cược Bầu Cua (CHO PHÉP cược nhiều lần, kể cả nhiều linh vật khác nhau) ---
       if (interaction.customId.startsWith('modal_bc_')) {
         const parts = interaction.customId.split('_');
         const choice = parts[2];
@@ -376,13 +419,34 @@ module.exports = {
         });
       }
 
-      // --- Modal đặt cược Tung Xu ---
       if (interaction.customId.startsWith('modal_tx_multi_')) {
         const parts = interaction.customId.split('_');
         const choice = parts[3];
         const gameMsgId = parts[4];
         const gameData = store.activeTungXuGames.get(gameMsgId);
         if (!gameData) return interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true });
+
+        const betAmount = parseInt(interaction.fields.getTextInputValue('tx_bet_input'));
+        if (isNaN(betAmount) || betAmount <= 0) return interaction.reply({ content: '❌ Tiền cược không hợp lệ!', ephemeral: true });
+
+        const userId = interaction.user.id;
+        const currentBal = store.economyMap.get(userId) || 0;
+        const oldBet = gameData.players.has(userId) ? gameData.players.get(userId).bet : 0;
+        const netNeeded = betAmount - oldBet;
+
+        if (currentBal < netNeeded) return interaction.reply({ content: '❌ Không đủ số dư!', ephemeral: true });
+
+        store.economyMap.set(userId, currentBal - netNeeded);
+        gameData.players.set(userId, { username: interaction.user.username, choice, bet: betAmount });
+        store.addLeaderboardScore(userId, betAmount);
+
+        return interaction.reply({ content: `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`, ephemeral: true });
+      }
+
+      return;
+    }
+  },
+};ent: '❌ Sòng đã kết thúc!', ephemeral: true });
 
         const betAmount = parseInt(interaction.fields.getTextInputValue('tx_bet_input'));
         if (isNaN(betAmount) || betAmount <= 0) return interaction.reply({ content: '❌ Tiền cược không hợp lệ!', ephemeral: true });
