@@ -53,16 +53,6 @@ const SHOP_ITEMS = [
         dailyLimit: 1
     },
     {
-        id: 5,
-        type: 'winmultiplier',
-        name: 'X5 Tiền',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 5. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt)',
-        price: 2000000,
-        uses: 2,
-        multiplier: 5,
-        dailyLimit: 5
-    },
-    {
         id: 6,
         type: 'box',
         name: 'Lucky Box',
