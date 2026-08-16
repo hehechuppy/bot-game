@@ -42,7 +42,14 @@ async function startTungXu(client, message, store) {
         store.addTungXu(pId, reward);
         summary.push(`• **${data.username}** thắng +${reward.toLocaleString()} Mcoin${buffTag}`);
       } else {
-        summary.push(`• **${data.username}** thua -${data.bet.toLocaleString()} Mcoin`);
+        let insuranceTag = '';
+        const refund = store.consumeInsuranceIfLoss(pId, data.bet);
+        if (refund > 0) {
+          store.addTungXu(pId, refund);
+          insuranceTag = ` 🛡️(hoàn ${refund.toLocaleString()})`;
+        }
+        const netLoss = data.bet - refund;
+        summary.push(`• **${data.username}** thua -${netLoss.toLocaleString()} Mcoin${insuranceTag}`);
       }
     });
 
