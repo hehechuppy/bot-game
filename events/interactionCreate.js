@@ -445,27 +445,5 @@ module.exports = {
 
       return;
     }
-  },
-}; (!gameData) return interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true });
-
-        const betAmount = parseInt(interaction.fields.getTextInputValue('tx_bet_input'));
-        if (isNaN(betAmount) || betAmount <= 0) return interaction.reply({ content: '❌ Tiền cược không hợp lệ!', ephemeral: true });
-
-        const userId = interaction.user.id;
-        const currentBal = store.economyMap.get(userId) || 0;
-        const oldBet = gameData.players.has(userId) ? gameData.players.get(userId).bet : 0;
-        const netNeeded = betAmount - oldBet;
-
-        if (currentBal < netNeeded) return interaction.reply({ content: '❌ Không đủ số dư!', ephemeral: true });
-
-        store.economyMap.set(userId, currentBal - netNeeded);
-        gameData.players.set(userId, { username: interaction.user.username, choice, bet: betAmount });
-        store.addLeaderboardScore(userId, betAmount);
-
-        return interaction.reply({ content: `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`, ephemeral: true });
-      }
-
-      return;
-    }
-  },
+  }
 };
