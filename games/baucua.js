@@ -58,6 +58,7 @@ async function startBauCua(client, message, store) {
         }
       });
 
+      // Buff nhân tiền thắng (x2/x3/x5) - tiêu 1 lượt mỗi ván bất kể thắng/thua
       const multiplier = store.consumeBuffIfActive(pId);
       let buffTag = '';
       if (multiplier > 1 && totalWin > 0) {
@@ -65,11 +66,23 @@ async function startBauCua(client, message, store) {
         buffTag = ` 🔥(x${multiplier})`;
       }
 
+      let net = totalWin - totalLoss;
+      let insuranceTag = '';
+
+      // Bảo hiểm thua: chỉ áp dụng khi net âm (thua ròng cả ván)
+      if (net < 0) {
+        const refund = store.consumeInsuranceIfLoss(pId, -net);
+        if (refund > 0) {
+          store.addTungXu(pId, refund);
+          net += refund;
+          insuranceTag = ` 🛡️(hoàn ${refund.toLocaleString()})`;
+        }
+      }
+
       if (totalWin > 0) store.addTungXu(pId, totalWin);
 
-      const net = totalWin - totalLoss;
       const netStr = net >= 0 ? `+${net.toLocaleString()}` : `${net.toLocaleString()}`;
-      summary.push(`• **${data.username}**: ${betLines.join(', ')} → Tổng: **${netStr} Mcoin**${buffTag}`);
+      summary.push(`• **${data.username}**: ${betLines.join(', ')} → Tổng: **${netStr} Mcoin**${buffTag}${insuranceTag}`);
     });
 
     const resEmbed = new EmbedBuilder()
