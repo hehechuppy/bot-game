@@ -26,7 +26,7 @@ module.exports = {
         .setTitle('🤖 TRUNG TÂM HƯỚNG DẪN')
         .addFields(
           { name: '💰 Kinh Tế', value: '`.tien`, `.diemdanh`, `.daily`, `.code`, `.nhapcode`, `.donate`', inline: false },
-          { name: '🛒 Cửa Hàng', value: '`.shop`, `.mua <id>`, `.sd <id>`', inline: false },
+          { name: '🛒 Cửa Hàng', value: '`.shop`, `.mua <id>`, `.sd <id>`, `.box`, `.unbox [số]`', inline: false },
           { name: '🎰 Trò Chơi', value: '`.tungxu` (.tx), `.baucua` (.bc), `.doanbom` (.bom), `.masoi` (.ms)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh`', inline: false },
         );
@@ -71,6 +71,7 @@ module.exports = {
       return message.reply(`🎁 Nhận mã code thành công! Nhận được **+${codeData.reward.toLocaleString()} Mcoin**.`);
     }
 
+    // --- .donate: thu phí 10% ---
     if (['donate', 'chuyenxu'].includes(command)) {
       const targetUser = message.mentions.users.first() || client.users.cache.get(args[0]);
       const amount = parseInt(args[1]);
@@ -79,10 +80,15 @@ module.exports = {
       if (isNaN(amount) || amount <= 0) return message.reply('❌ Vui lòng nhập số tiền hợp lệ lớn hơn 0!');
       const senderBal = store.economyMap.get(userId) || 0;
       if (senderBal < amount) return message.reply(`❌ Bạn không đủ số dư! Số dư: **${senderBal.toLocaleString()} Mcoin**.`);
+
+      const fee = Math.floor(amount * 0.1);
+      const received = amount - fee;
+
       store.economyMap.set(userId, senderBal - amount);
       const receiverBal = store.economyMap.get(targetUser.id) || 0;
-      store.economyMap.set(targetUser.id, receiverBal + amount);
-      return message.reply(`✅ Bạn đã chuyển thành công **${amount.toLocaleString()} Mcoin** cho **${targetUser.username}**!`);
+      store.economyMap.set(targetUser.id, receiverBal + received);
+
+      return message.reply(`✅ Bạn đã chuyển **${amount.toLocaleString()} Mcoin** cho **${targetUser.username}**!\n💸 Phí giao dịch 10%: **${fee.toLocaleString()} Mcoin** — người nhận được **${received.toLocaleString()} Mcoin**.`);
     }
 
     // ================= SHOP / VẬT PHẨM =================
@@ -93,7 +99,7 @@ module.exports = {
       const shopEmbed = new EmbedBuilder()
         .setColor('#FFD700')
         .setTitle('🛒 CỬA HÀNG VẬT PHẨM')
-        .setDescription(desc + '\nDùng `.mua <id>` để mua, `.sd <id>` để kích hoạt vật phẩm đã mua.');
+        .setDescription(desc + '\nDùng `.mua <id>` để mua, `.sd <id>` để kích hoạt (riêng Lucky Box dùng `.box`/`.unbox`).');
       return message.reply({ embeds: [shopEmbed] });
     }
 
@@ -109,17 +115,84 @@ module.exports = {
 
       store.economyMap.set(userId, bal - item.price);
       store.addToInventory(userId, item.id, 1);
+
+      if (item.type === 'box') {
+        return message.reply(`✅ Đã mua **${item.name}**! Dùng \`.box\` để xem, \`.unbox\` để mở.`);
+      }
       return message.reply(`✅ Đã mua **${item.name}**! Dùng \`.sd ${item.id}\` để kích hoạt.`);
     }
 
     if (command === 'sd') {
       const itemId = parseInt(args[0]);
-      const result = store.useItem(userId, itemId);
-      if (!result.success) {
-        if (result.reason === 'not_found') return message.reply('❌ Không tìm thấy vật phẩm với ID này!');
-        if (result.reason === 'no_item') return message.reply('❌ Bạn chưa sở hữu vật phẩm này! Dùng `.mua <id>` để mua trước.');
+      const item = store.SHOP_ITEMS.find(i => i.id === itemId);
+      if (!item) return message.reply('❌ Không tìm thấy vật phẩm với ID này!');
+
+      if (item.type === 'box') {
+        return message.reply('📦 Lucky Box không dùng `.sd` — hãy dùng `.unbox` để mở hộp!');
       }
-      return message.reply(`✨ Đã kích hoạt **${result.item.name}**! Hiệu ứng x${result.item.multiplier} tiền thắng đang có hiệu lực trong **${result.buff.usesLeft} lượt** chơi tiếp theo (Bầu Cua / Tung Xu).`);
+
+      if (!store.canUseItemToday(userId, itemId)) {
+        return message.reply(`❌ Bạn đã dùng hết lượt **${item.name}** hôm nay rồi! (Giới hạn: ${item.dailyLimit} lần/ngày)`);
+      }
+
+      const inv = store.getInventory(userId);
+      const qty = inv.get(itemId) || 0;
+      if (qty <= 0) return message.reply('❌ Bạn chưa sở hữu vật phẩm này! Dùng `.mua <id>` để mua trước.');
+
+      store.removeFromInventory(userId, itemId, 1);
+      store.recordItemUse(userId, itemId);
+
+      if (item.type === 'winmultiplier') {
+        const buff = store.activateWinBuff(userId, item.id, item.multiplier, item.uses);
+        return message.reply(`✨ Đã kích hoạt **${item.name}**! Hiệu ứng x${item.multiplier} tiền thắng đang có hiệu lực trong **${buff.usesLeft} lượt** chơi tiếp theo (Bầu Cua / Tung Xu).`);
+      }
+
+      if (item.type === 'insurance') {
+        const total = store.activateInsurance(userId, item.uses);
+        return message.reply(`🛡️ Đã kích hoạt **${item.name}**! Bạn sẽ được hoàn lại tiền nếu thua ở ván tiếp theo (còn **${total}** lượt bảo hiểm).`);
+      }
+
+      if (item.type === 'voicetime') {
+        const expiresAt = store.activateVoiceBuff(userId, item.durationMs);
+        setTimeout(async () => {
+          if ((store.activeVoiceBuffsMap.get(userId) || 0) <= Date.now()) {
+            store.activeVoiceBuffsMap.delete(userId);
+            try {
+              const user = await client.users.fetch(userId);
+              await user.send(`⏰ Hiệu ứng **${item.name}** của bạn đã hết hạn!`);
+            } catch (e) { /* DM tắt, bỏ qua */ }
+          }
+        }, item.durationMs);
+        return message.reply(`✨ Đã kích hoạt **${item.name}**! Hiệu lực đến <t:${Math.floor(expiresAt / 1000)}:t> (<t:${Math.floor(expiresAt / 1000)}:R>).`);
+      }
+
+      return message.reply('❌ Không thể kích hoạt vật phẩm này.');
+    }
+
+    if (command === 'box') {
+      const count = store.getBoxCount(userId, 6);
+      return message.reply(count > 0
+        ? `📦 Bạn đang có **${count}** Lucky Box chưa mở! Dùng \`.unbox\` để mở tất cả, hoặc \`.unbox <số>\` để mở 1 phần.`
+        : '📭 Bạn chưa có Lucky Box nào! Mua tại `.shop` (ID 6).');
+    }
+
+    if (command === 'unbox') {
+      const owned = store.getBoxCount(userId, 6);
+      if (owned <= 0) return message.reply('📭 Bạn chưa có Lucky Box nào để mở!');
+
+      const requested = args[0] ? parseInt(args[0]) : owned;
+      if (isNaN(requested) || requested <= 0) return message.reply('❌ Số lượng không hợp lệ!');
+
+      const result = store.openBoxes(userId, 6, requested);
+      if (!result.success) return message.reply('❌ Có lỗi khi mở hộp!');
+
+      const listStr = result.rewards.map((r, i) => {
+        const sign = r >= 0 ? '+' : '';
+        return `#${i + 1}: ${sign}${r.toLocaleString()} Mcoin`;
+      }).join('\n');
+      const totalSign = result.total >= 0 ? '+' : '';
+
+      return message.reply(`🎉 Đã mở **${result.openCount}** Lucky Box!\n${listStr}\n\n💰 Tổng thay đổi: **${totalSign}${result.total.toLocaleString()} Mcoin**`);
     }
 
     if (['daily', 'dl'].includes(command)) {
@@ -151,12 +224,19 @@ module.exports = {
       return message.reply(`💰 Số dư của bạn: **${bal.toLocaleString()} Mcoin**`);
     }
 
+    // --- .diemdanh: chuỗi 7 ngày ---
     if (['diemdanh','dd'].includes(command)) {
-      const today = new Date().toDateString();
-      if (dData.lastDiemDanh === today) return message.reply('❌ Đã điểm danh hôm nay rồi!');
-      dData.lastDiemDanh = today;
-      const reward = store.addTungXu(userId, Math.floor(Math.random() * 501) + 1000);
-      return message.reply(`🎁 Điểm danh nhận **+${reward} Mcoin**!`);
+      const result = store.processDiemDanh(userId);
+      if (!result.success) {
+        return message.reply('❌ Đã điểm danh hôm nay rồi!');
+      }
+      let text = `🎁 Điểm danh ngày **${result.streakDay}/7**! Nhận **+${result.reward.toLocaleString()} Mcoin**!`;
+      if (result.bonusBox) {
+        text += `\n🎉 **Hoàn thành chuỗi 7 ngày!** Nhận thêm **1 Lucky Box**! Chuỗi sẽ tính lại từ ngày 1.`;
+      } else {
+        text += `\n(Điểm danh liên tục ngày mai để lên ngày ${result.streakDay + 1}, bỏ lỡ 1 ngày sẽ về lại ngày 1)`;
+      }
+      return message.reply(text);
     }
   },
 };
