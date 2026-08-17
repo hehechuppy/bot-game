@@ -62,7 +62,7 @@ module.exports = {
     }
 
     if (command === 'nhapcode') {
-      if (!args[0]) return message.reply('❌ Vui lòng nhập mã code!');
+      if (!args[0]) return message.reply('❌ Vui lòng nhập mã code!. .nhapcode <mã>');
       const codeInput = args[0].toLowerCase();
       if (!store.customCodesMap.has(codeInput)) return message.reply('❌ Mã code không tồn tại!');
       const codeData = store.customCodesMap.get(codeInput);
