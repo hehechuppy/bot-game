@@ -449,10 +449,15 @@ module.exports = {
         }
 
         // =======================================================
-        // BAU CUA
-        // QUAN TRỌNG: KHÔNG deferUpdate() TRƯỚC showModal()
+        // BAU CUA - FIX: Thêm check replied/deferred
         // =======================================================
         if (customId.startsWith('bc_')) {
+          // ✅ CHECK TRƯỚC KHI XỬ LÝ
+          if (interaction.replied || interaction.deferred) {
+            console.warn('⚠️ Button BC: Interaction đã được reply rồi');
+            return;
+          }
+
           const gameMsgId =
             interaction.message.id;
 
@@ -518,7 +523,7 @@ module.exports = {
         }
 
         // =======================================================
-        // TUNG XU
+        // TUNG XU - FIX: Thêm check replied/deferred
         // =======================================================
         if (
           customId ===
@@ -526,6 +531,12 @@ module.exports = {
           customId ===
             'tx_multi_sap'
         ) {
+          // ✅ CHECK TRƯỚC KHI XỬ LÝ
+          if (interaction.replied || interaction.deferred) {
+            console.warn('⚠️ Button TX: Interaction đã được reply rồi');
+            return;
+          }
+
           const gameMsgId =
             interaction.message.id;
 
@@ -594,14 +605,12 @@ module.exports = {
         }
 
         // =======================================================
-        // DOAN BOM JOIN
-        //
-        // doanbom.js:
-        // set(`bom_${gameMsg.id}`, gameData)
-        //
-        // nên phải lấy đúng key này.
+        // DOAN BOM JOIN - FIX: Thêm deferUpdate()
         // =======================================================
         if (customId === 'bom_join') {
+          // ✅ DEFER TRƯỚC KHI UPDATE
+          await interaction.deferUpdate();
+
           const gameId =
             `bom_${interaction.message.id}`;
 
@@ -612,10 +621,9 @@ module.exports = {
 
           if (!gameData) {
             return await safeRespond(() =>
-              interaction.reply({
+              interaction.editReply({
                 content:
-                  '❌ Không tìm thấy ván Đoán Bom này!',
-                ephemeral: true
+                  '❌ Không tìm thấy ván Đoán Bom này!'
               })
             );
           }
@@ -625,10 +633,9 @@ module.exports = {
             'joining'
           ) {
             return await safeRespond(() =>
-              interaction.reply({
+              interaction.editReply({
                 content:
-                  '❌ Ván Đoán Bom đã bắt đầu hoặc đã kết thúc!',
-                ephemeral: true
+                  '❌ Ván Đoán Bom đã bắt đầu hoặc đã kết thúc!'
               })
             );
           }
@@ -642,10 +649,9 @@ module.exports = {
             )
           ) {
             return await safeRespond(() =>
-              interaction.reply({
+              interaction.editReply({
                 content:
-                  '⚠️ Bạn đã tham gia ván này rồi!',
-                ephemeral: true
+                  '⚠️ Bạn đã tham gia ván này rồi!'
               })
             );
           }
@@ -692,7 +698,7 @@ module.exports = {
               );
 
           return await safeRespond(() =>
-            interaction.update({
+            interaction.editReply({
               embeds: [
                 updatedEmbed
               ],
@@ -747,17 +753,19 @@ module.exports = {
           const userId =
             interaction.user.id;
 
-          // ---------------- JOIN ----------------
+          // ---------------- JOIN - FIX: Thêm deferUpdate() ----------------
           if (action === 'join') {
+            // ✅ DEFER TRƯỚC KHI UPDATE
+            await interaction.deferUpdate();
+
             if (
               gameData.phase !==
               'joining'
             ) {
               return await safeRespond(() =>
-                interaction.reply({
+                interaction.editReply({
                   content:
-                    '❌ Ván Ma Sói đã bắt đầu!',
-                  ephemeral: true
+                    '❌ Ván Ma Sói đã bắt đầu!'
                 })
               );
             }
@@ -768,10 +776,9 @@ module.exports = {
               )
             ) {
               return await safeRespond(() =>
-                interaction.reply({
+                interaction.editReply({
                   content:
-                    '⚠️ Bạn đã tham gia ván Ma Sói rồi!',
-                  ephemeral: true
+                    '⚠️ Bạn đã tham gia ván Ma Sói rồi!'
                 })
               );
             }
@@ -814,7 +821,7 @@ module.exports = {
                 );
 
             return await safeRespond(() =>
-              interaction.update({
+              interaction.editReply({
                 embeds: [
                   updatedEmbed
                 ],
