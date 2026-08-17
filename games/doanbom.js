@@ -3,7 +3,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 const JOIN_TIME = 20000;
 const MIN_PLAYERS = 2;
-const ROUND_TIME = 10000;
+const ROUND_TIME = 15000;
 const CELL_COUNT = 9;
 const BETWEEN_ROUND_DELAY = 5000;
 
