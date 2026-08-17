@@ -64,7 +64,8 @@ const SHOP_ITEMS = [
 
 // Tỷ lệ Lucky Box - KHÔNG hiển thị cho người dùng ở bất kỳ đâu
 const BOX_TIERS = [
-    { chance: 0.70, min: -2000000, max: 500000 },
+    { chance: 0.50, min: -2000000, max: 500000 },
+    { chance: 0.20, min: 36, max: 36 },
     { chance: 0.20, min: 500000, max: 1000000 },
     { chance: 0.09, min: 1000000, max: 2000000 },
     { chance: 0.01, min: 2000000, max: 3000000 }
@@ -231,6 +232,19 @@ function recordItemUse(userId, itemId) {
     dData.itemUses[itemId] = (dData.itemUses[itemId] || 0) + 1;
 }
 
+function canBuyItemToday(userId, itemId) {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item || item.dailyLimit == null) return true;
+    const dData = getDailyData(userId);
+    const bought = dData.itemUses[itemId] || 0;
+    return bought < item.dailyLimit;
+}
+
+function recordItemBuy(userId, itemId) {
+    const dData = getDailyData(userId);
+    dData.itemUses[itemId] = (dData.itemUses[itemId] || 0) + 1;
+}
+
 function addTungXu(userId, amount) {
     const current = economyMap.get(userId) || 0;
     economyMap.set(userId, current + amount);
@@ -329,6 +343,8 @@ module.exports = {
     getVoiceMultiplier,
     canUseItemToday,
     recordItemUse,
+    canBuyItemToday,
+    recordItemBuy,
     processDiemDanh,
     getDailyData,
     addTungXu,
