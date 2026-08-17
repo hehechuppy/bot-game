@@ -13,10 +13,10 @@ function startRewardJob(client) {
     for (let i = 0; i < sorted.length; i++) {
       const [uId] = sorted[i];
       let reward = 0;
-      if (i === 0) reward = 5000;
-      else if (i === 1) reward = 2000;
-      else if (i === 2) reward = 1000;
-      else reward = 36;
+      if (i === 0) reward = 50000;
+      else if (i === 1) reward = 20000;
+      else if (i === 2) reward = 10000;
+      else reward = 367;
 
       if (reward > 0) {
         store.addTungXu(uId, reward);
