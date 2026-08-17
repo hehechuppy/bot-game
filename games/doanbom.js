@@ -125,20 +125,32 @@ async function resolveRound(gameId, store) {
   const bombIndex = gameData.bombIndex;
   const eliminated = [];
 
+  // ✅ CÁCH 1: Loại những ai chọn trúng bom
   gameData.picks.forEach((cellIndex, userId) => {
     if (cellIndex === bombIndex && gameData.alive.has(userId)) {
       eliminated.push(userId);
     }
   });
 
-  eliminated.forEach(userId => gameData.alive.delete(userId));
+  // ✅ CÁCH 2: Loại những ai KHÔNG chọn số (AFK)
+  gameData.alive.forEach((userId) => {
+    if (!gameData.picks.has(userId)) {
+      eliminated.push(userId);
+    }
+  });
+
+  // ✅ Xóa trùng lặp (nếu có)
+  const uniqueEliminated = [...new Set(eliminated)];
+
+  // ✅ Loại những ai bị loại khỏi alive set
+  uniqueEliminated.forEach(userId => gameData.alive.delete(userId));
 
   let resultDesc = `💣 Ô có bom: **Ô số ${bombIndex + 1}**\n\n`;
 
-  if (eliminated.length > 0) {
-    const bonus = eliminated.length * 20000;
+  if (uniqueEliminated.length > 0) {
+    const bonus = uniqueEliminated.length * 20000;
     gameData.pot += bonus;
-    resultDesc += `☠️ Người bị loại:\n${eliminated.map(id => `• ${gameData.participants.get(id)}`).join('\n')}\n`;
+    resultDesc += `☠️ Người bị loại (${uniqueEliminated.length} người):\n${uniqueEliminated.map(id => `• ${gameData.participants.get(id)}`).join('\n')}\n`;
     resultDesc += `💰 Tiền thưởng cộng: **+${bonus.toLocaleString()} Mcoin**\n\n`;
   } else {
     const bonus = 30000;
@@ -151,7 +163,7 @@ async function resolveRound(gameId, store) {
   resultDesc += `💰 Tiền thưởng hiện tại: **${gameData.pot.toLocaleString()} Mcoin**`;
 
   const resultEmbed = new EmbedBuilder()
-    .setColor(eliminated.length > 0 ? '#FF0000' : '#00FF00')
+    .setColor(uniqueEliminated.length > 0 ? '#FF0000' : '#00FF00')
     .setTitle(`💥 KẾT QUẢ VÒNG ${gameData.round}`)
     .setDescription(resultDesc);
 
