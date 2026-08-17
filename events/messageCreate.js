@@ -22,15 +22,18 @@ module.exports = {
 
     if (['help', 'shelp'].includes(command)) {
       const helpEmbed = new EmbedBuilder()
-        .setColor('#0099ff')
+        .setColor('#5865F2')
         .setTitle('🤖 TRUNG TÂM HƯỚNG DẪN')
+        .setThumbnail(message.author.displayAvatarURL())
         .addFields(
-          { name: '💰 Kinh Tế', value: '`.tien`, `.diemdanh`, `.daily`, `.code`, `.nhapcode`, `.donate`', inline: false },
-          { name: '🛒 Cửa Hàng', value: '`.shop`, `.mua <id>`, `.sd <id>`, `.box`, `.unbox [số]`', inline: false },
-          { name: '🎰 Trò Chơi', value: '`.tungxu` (.tx), `.baucua` (.bc), `.doanbom` (.bom), `.masoi` (.ms)', inline: false },
+          { name: '💰 Kinh Tế', value: '`.tien` • `.diemdanh` • `.daily` • `.code` • `.nhapcode` • `.donate`', inline: false },
+          { name: '🛒 Cửa Hàng', value: '`.shop` • `.mua <id>` • `.sd <id>` • `.box` • `.unbox [số]`', inline: false },
+          { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh`', inline: false },
-          { name: '💵 cày mcoin', value: '`treo voice nhận mcoin`', inline: false },
-        );
+          { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
+        )
+        .setFooter({ text: 'Sử dụng .help để xem hướng dẫn', iconURL: client.user.displayAvatarURL() })
+        .setTimestamp();
       return message.reply({ embeds: [helpEmbed] });
     }
 
@@ -46,13 +49,15 @@ module.exports = {
       const now = Date.now();
       for (const [code, data] of store.customCodesMap.entries()) {
         if (data.expiresAt && now > data.expiresAt) continue;
-        const timeStr = data.expiresAt ? ` (Hết hạn: <t:${Math.floor(data.expiresAt / 1000)}:R>)` : '';
-        desc += `• \`${code}\`: **+${data.reward.toLocaleString()} Mcoin**${timeStr}\n`;
+        const timeStr = data.expiresAt ? ` (Hết hạn: <t:${Math.floor(data.expiresAt / 1000)}:R>)` : ' (Vĩnh viễn)';
+        desc += `🎟️ \`${code}\` → **+${data.reward.toLocaleString()} Mcoin**${timeStr}\n`;
       }
       const codeEmbed = new EmbedBuilder()
         .setColor('#00ffcc')
-        .setTitle('🎟️ DANH SÁCH MÃ CODE HIỆN CÓ')
-        .setDescription(desc || 'Hiện không có mã code nào khả dụng.');
+        .setTitle('🎁 DANH SÁCH MÃ CODE')
+        .setDescription(desc || '❌ Hiện không có mã code nào khả dụng.')
+        .setFooter({ text: 'Dùng .nhapcode <mã> để sử dụng' })
+        .setTimestamp();
       return message.reply({ embeds: [codeEmbed] });
     }
 
@@ -69,7 +74,7 @@ module.exports = {
       if (store.usedCodesMap.get(message.author.id).has(codeInput)) return message.reply('❌ Bạn đã sử dụng mã code này rồi!');
       store.usedCodesMap.get(message.author.id).add(codeInput);
       store.addTungXu(message.author.id, codeData.reward);
-      return message.reply(`🎁 Nhận mã code thành công! Nhận được **+${codeData.reward.toLocaleString()} Mcoin**.`);
+      return message.reply(`🎁 Nhận mã code thành công!\n💰 +${codeData.reward.toLocaleString()} Mcoin`);
     }
 
     // --- .donate: thu phí 10% ---
@@ -80,7 +85,7 @@ module.exports = {
       if (targetUser.id === userId) return message.reply('❌ Bạn không thể tự tặng xu cho chính mình!');
       if (isNaN(amount) || amount <= 0) return message.reply('❌ Vui lòng nhập số tiền hợp lệ lớn hơn 0!');
       const senderBal = store.economyMap.get(userId) || 0;
-      if (senderBal < amount) return message.reply(`❌ Bạn không đủ số dư! Số dư: **${senderBal.toLocaleString()} Mcoin**.`);
+      if (senderBal < amount) return message.reply(`❌ Bạn không đủ số dư!\n💰 Số dư: **${senderBal.toLocaleString()} Mcoin**`);
 
       const fee = Math.floor(amount * 0.1);
       const received = amount - fee;
@@ -89,18 +94,35 @@ module.exports = {
       const receiverBal = store.economyMap.get(targetUser.id) || 0;
       store.economyMap.set(targetUser.id, receiverBal + received);
 
-      return message.reply(`✅ Bạn đã chuyển **${amount.toLocaleString()} Mcoin** cho **${targetUser.username}**!\n💸 Phí giao dịch 10%: **${fee.toLocaleString()} Mcoin** — người nhận được **${received.toLocaleString()} Mcoin**.`);
+      const donateEmbed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle('💸 Chuyển Xu Thành Công')
+        .addFields(
+          { name: '👤 Người gửi', value: `${message.author.username}`, inline: true },
+          { name: '📨 Người nhận', value: `${targetUser.username}`, inline: true },
+          { name: '💰 Số tiền chuyển', value: `**${amount.toLocaleString()}** Mcoin`, inline: true },
+          { name: '💸 Phí (10%)', value: `**${fee.toLocaleString()}** Mcoin`, inline: true },
+          { name: '✅ Người nhận được', value: `**${received.toLocaleString()}** Mcoin`, inline: true }
+        )
+        .setFooter({ text: 'Chuyển xu không thể hoàn lại' })
+        .setTimestamp();
+
+      return message.reply({ embeds: [donateEmbed] });
     }
 
     // ================= SHOP / VẬT PHẨM =================
     if (command === 'shop') {
-      const desc = store.SHOP_ITEMS.map(item =>
-        `**#${item.id} — ${item.name}**\n${item.description}\n💰 Giá: **${item.price.toLocaleString()} Mcoin**\n`
-      ).join('\n');
+      const desc = store.SHOP_ITEMS.map(item => {
+        const dailyText = item.dailyLimit ? `\n⏳ Giới hạn: ${item.dailyLimit}/ngày` : '';
+        return `**#${item.id} — ${item.name}**\n${item.description}${dailyText}\n💰 **${item.price.toLocaleString()}** Mcoin\n`;
+      }).join('\n');
+      
       const shopEmbed = new EmbedBuilder()
         .setColor('#FFD700')
         .setTitle('🛒 CỬA HÀNG VẬT PHẨM')
-        .setDescription(desc + '\nDùng `.mua <id>` để mua, `.sd <id>` để kích hoạt (riêng Lucky Box dùng `.box`/`.unbox`).');
+        .setDescription(desc)
+        .setFooter({ text: 'Dùng .mua <id> để mua | .sd <id> để dùng | .box/.unbox cho Lucky Box' })
+        .setTimestamp();
       return message.reply({ embeds: [shopEmbed] });
     }
 
@@ -109,18 +131,31 @@ module.exports = {
       const item = store.SHOP_ITEMS.find(i => i.id === itemId);
       if (!item) return message.reply('❌ Không tìm thấy vật phẩm với ID này! Dùng `.shop` để xem danh sách.');
 
+      // Check giới hạn mua hằng ngày cho box
+      if (item.type === 'box' && item.dailyLimit) {
+        if (!store.canBuyItemToday(userId, itemId)) {
+          return message.reply(`❌ Bạn đã mua hết lượt **${item.name}** hôm nay!\n⏳ Giới hạn: ${item.dailyLimit} cái/ngày`);
+        }
+      }
+
       const bal = store.economyMap.get(userId) || 0;
       if (bal < item.price) {
-        return message.reply(`❌ Bạn không đủ Mcoin! Cần **${item.price.toLocaleString()} Mcoin**, bạn có **${bal.toLocaleString()} Mcoin**.`);
+        return message.reply(`❌ Bạn không đủ Mcoin!\n💰 Cần: **${item.price.toLocaleString()}** | Có: **${bal.toLocaleString()}**`);
       }
 
       store.economyMap.set(userId, bal - item.price);
       store.addToInventory(userId, item.id, 1);
 
-      if (item.type === 'box') {
-        return message.reply(`✅ Đã mua **${item.name}**! Dùng \`.box\` để xem, \`.unbox\` để mở.`);
+      // Record item buy nếu có giới hạn
+      if (item.dailyLimit) {
+        store.recordItemBuy(userId, itemId);
       }
-      return message.reply(`✅ Đã mua **${item.name}**! Dùng \`.sd ${item.id}\` để kích hoạt.`);
+
+      if (item.type === 'box') {
+        const remaining = item.dailyLimit - (store.getDailyData(userId).itemUses[itemId] || 0);
+        return message.reply(`✅ Đã mua **${item.name}**!\n📦 Dùng \`.box\` để xem, \`.unbox\` để mở.\n⏳ Còn lại: **${remaining}/${item.dailyLimit}** cái hôm nay`);
+      }
+      return message.reply(`✅ Đã mua **${item.name}**!\n⚡ Dùng \`.sd ${item.id}\` để kích hoạt.`);
     }
 
     if (command === 'sd') {
@@ -133,24 +168,24 @@ module.exports = {
       }
 
       if (!store.canUseItemToday(userId, itemId)) {
-        return message.reply(`❌ Bạn đã dùng hết lượt **${item.name}** hôm nay rồi! (Giới hạn: ${item.dailyLimit} lần/ngày)`);
+        return message.reply(`❌ Bạn đã dùng hết lượt **${item.name}** hôm nay!\n⏳ Giới hạn: ${item.dailyLimit} lần/ngày`);
       }
 
       const inv = store.getInventory(userId);
       const qty = inv.get(itemId) || 0;
-      if (qty <= 0) return message.reply('❌ Bạn chưa sở hữu vật phẩm này! Dùng `.mua <id>` để mua trước.');
+      if (qty <= 0) return message.reply('❌ Bạn chưa sở hữu vật phẩm này!\n💳 Dùng `.mua <id>` để mua trước.');
 
       store.removeFromInventory(userId, itemId, 1);
       store.recordItemUse(userId, itemId);
 
       if (item.type === 'winmultiplier') {
         const buff = store.activateWinBuff(userId, item.id, item.multiplier, item.uses);
-        return message.reply(`✨ Đã kích hoạt **${item.name}**! Hiệu ứng x${item.multiplier} tiền thắng đang có hiệu lực trong **${buff.usesLeft} lượt** chơi tiếp theo (Bầu Cua / Tung Xu).`);
+        return message.reply(`✨ **${item.name}** đã kích hoạt!\n🎯 Hiệu ứng: x${item.multiplier} tiền thắng\n📊 Còn lại: **${buff.usesLeft}** lượt chơi`);
       }
 
       if (item.type === 'insurance') {
         const total = store.activateInsurance(userId, item.uses);
-        return message.reply(`🛡️ Đã kích hoạt **${item.name}**! Bạn sẽ được hoàn lại tiền nếu thua ở ván tiếp theo (còn **${total}** lượt bảo hiểm).`);
+        return message.reply(`🛡️ **${item.name}** đã kích hoạt!\n💰 Sẽ hoàn lại tiền nếu thua ở ván tiếp theo\n📊 Bảo hiểm còn lại: **${total}** lượt`);
       }
 
       if (item.type === 'voicetime') {
@@ -164,7 +199,7 @@ module.exports = {
             } catch (e) { /* DM tắt, bỏ qua */ }
           }
         }, item.durationMs);
-        return message.reply(`✨ Đã kích hoạt **${item.name}**! Hiệu lực đến <t:${Math.floor(expiresAt / 1000)}:t> (<t:${Math.floor(expiresAt / 1000)}:R>).`);
+        return message.reply(`✨ **${item.name}** đã kích hoạt!\n📈 Nhân đôi Mcoin trong voice\n⏱️ Hết hạn: <t:${Math.floor(expiresAt / 1000)}:R>`);
       }
 
       return message.reply('❌ Không thể kích hoạt vật phẩm này.');
@@ -172,9 +207,20 @@ module.exports = {
 
     if (command === 'box') {
       const count = store.getBoxCount(userId, 6);
-      return message.reply(count > 0
-        ? `📦 Bạn đang có **${count}** Lucky Box chưa mở! Dùng \`.unbox\` để mở tất cả, hoặc \`.unbox <số>\` để mở 1 phần.`
-        : '📭 Bạn chưa có Lucky Box nào! Mua tại `.shop` (ID 6).');
+      if (count > 0) {
+        const boxEmbed = new EmbedBuilder()
+          .setColor('#9C27B0')
+          .setTitle('📦 Kho Lucky Box')
+          .setDescription(`Bạn đang có **${count}** Lucky Box chưa mở!`)
+          .addFields(
+            { name: '🔓 Mở tất cả', value: '`.unbox`', inline: true },
+            { name: '🔓 Mở một phần', value: '`.unbox <số>`', inline: true }
+          )
+          .setFooter({ text: 'Mở hộp để nhận Mcoin!' })
+          .setTimestamp();
+        return message.reply({ embeds: [boxEmbed] });
+      }
+      return message.reply('📭 Bạn chưa có Lucky Box nào!\n💳 Mua tại `.shop` (ID 6)');
     }
 
     if (command === 'unbox') {
@@ -187,30 +233,50 @@ module.exports = {
       const result = store.openBoxes(userId, 6, requested);
       if (!result.success) return message.reply('❌ Có lỗi khi mở hộp!');
 
-      const listStr = result.rewards.map((r, i) => {
-        const sign = r >= 0 ? '+' : '';
-        return `#${i + 1}: ${sign}${r.toLocaleString()} Mcoin`;
+      const listStr = result.rewards.slice(0, 10).map((r, i) => {
+        const sign = r >= 0 ? '✅ +' : '❌ ';
+        return `${sign}${r.toLocaleString()} Mcoin`;
       }).join('\n');
-      const totalSign = result.total >= 0 ? '+' : '';
+      const totalSign = result.total >= 0 ? '✅ +' : '❌ ';
+      const hideMsg = result.openCount > 10 ? `\n... và ${result.openCount - 10} hộp khác` : '';
 
-      return message.reply(`🎉 Đã mở **${result.openCount}** Lucky Box!\n${listStr}\n\n💰 Tổng thay đổi: **${totalSign}${result.total.toLocaleString()} Mcoin**`);
+      const unboxEmbed = new EmbedBuilder()
+        .setColor('#FF9800')
+        .setTitle('🎉 Mở Lucky Box')
+        .setDescription(`**Đã mở ${result.openCount} hộp!**\n\n${listStr}${hideMsg}\n\n━━━━━━━━━━━━━━━\n${totalSign}**${Math.abs(result.total).toLocaleString()} Mcoin**`)
+        .setFooter({ text: 'May mắn lần sau nha! 🍀' })
+        .setTimestamp();
+
+      return message.reply({ embeds: [unboxEmbed] });
     }
 
     if (['daily', 'dl'].includes(command)) {
       const userBal = store.economyMap.get(userId) || 0;
-      const msgStatus = `${dData.messages}/20 ${dData.messages >= 20 ? '✅' : '⏳'}`;
-      const gameStatus = `${dData.games}/3 ${dData.games >= 3 ? '✅' : '⏳'}`;
-      const earnedStatus = `${dData.earned.toLocaleString()}/2,000 ${dData.earned >= 2000 ? '✅' : '⏳'}`;
+      const msgStatus = dData.messages >= 20 ? '✅ Hoàn thành' : `⏳ ${dData.messages}/20`;
+      const gameStatus = dData.games >= 3 ? '✅ Hoàn thành' : `⏳ ${dData.games}/3`;
+      const earnedStatus = dData.earned >= 2000 ? '✅ Hoàn thành' : `⏳ ${dData.earned.toLocaleString()}/2,000`;
+      
+      const canClaim = dData.messages >= 20 && dData.games >= 3 && dData.earned >= 2000 && !(dData.claimedMsg && dData.claimedGame && dData.claimedEarned);
+
       const dailyEmbed = new EmbedBuilder()
-        .setColor('#2b2d31')
+        .setColor('#4CAF50')
         .setTitle('🎁 NHIỆM VỤ HẰNG NGÀY (DAILY)')
-        .setDescription(`💬 **Nhắn 20 tin**\n${msgStatus}\n\n🎲 **Chơi 3 ván game**\n${gameStatus}\n\n💰 **Kiếm 2,000 TungXu**\n${earnedStatus}\n\nSố dư: **${userBal.toLocaleString()} Mcoin**`);
+        .setDescription(`**Hoàn thành nhiệm vụ để nhận thưởng!**`)
+        .addFields(
+          { name: '💬 Nhắn 20 tin', value: msgStatus, inline: false },
+          { name: '🎲 Chơi 3 ván game', value: gameStatus, inline: false },
+          { name: '💰 Kiếm 2,000 TungXu', value: earnedStatus, inline: false },
+          { name: '💳 Số dư hiện tại', value: `**${userBal.toLocaleString()} Mcoin**`, inline: false }
+        )
+        .setFooter({ text: 'Nhận thưởng được reset hằng ngày lúc 00:00' })
+        .setTimestamp();
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`claim_daily_${userId}`)
-          .setLabel('Nhận Thưởng Daily')
+          .setLabel('🎁 Nhận Thưởng')
           .setStyle(ButtonStyle.Success)
-          .setDisabled(dData.messages < 20 || dData.games < 3 || dData.earned < 2000 || (dData.claimedMsg && dData.claimedGame && dData.claimedEarned))
+          .setDisabled(!canClaim)
       );
       return message.reply({ embeds: [dailyEmbed], components: [row] });
     }
@@ -222,22 +288,37 @@ module.exports = {
 
     if (command === 'tien' || command === 'sodu') {
       const bal = store.economyMap.get(userId) || 0;
-      return message.reply(`💰 Số dư của bạn: **${bal.toLocaleString()} Mcoin**`);
+      const balEmbed = new EmbedBuilder()
+        .setColor('#2196F3')
+        .setTitle('💰 Số Dư')
+        .setDescription(`**${bal.toLocaleString()} Mcoin**`)
+        .setThumbnail(message.author.displayAvatarURL())
+        .setFooter({ text: 'Dùng .donate để chuyển xu cho bạn bè' })
+        .setTimestamp();
+      return message.reply({ embeds: [balEmbed] });
     }
 
     // --- .diemdanh: chuỗi 7 ngày ---
     if (['diemdanh','dd'].includes(command)) {
       const result = store.processDiemDanh(userId);
       if (!result.success) {
-        return message.reply('❌ Đã điểm danh hôm nay rồi!');
+        return message.reply('❌ Đã điểm danh hôm nay rồi!\n⏰ Quay lại vào ngày mai để tiếp tục!');
       }
-      let text = `🎁 Điểm danh ngày **${result.streakDay}/7**! Nhận **+${result.reward.toLocaleString()} Mcoin**!`;
-      if (result.bonusBox) {
-        text += `\n🎉 **Hoàn thành chuỗi 7 ngày!** Nhận thêm **1 Lucky Box**! Chuỗi sẽ tính lại từ ngày 1.`;
-      } else {
-        text += `\n(Điểm danh liên tục ngày mai để lên ngày ${result.streakDay + 1}, bỏ lỡ 1 ngày sẽ về lại ngày 1)`;
-      }
-      return message.reply(text);
+      
+      const ddEmbed = new EmbedBuilder()
+        .setColor('#FF6B6B')
+        .setTitle('🎁 Điểm Danh Hằng Ngày')
+        .addFields(
+          { name: '📊 Ngày', value: `${result.streakDay}/7`, inline: true },
+          { name: '💰 Phần thưởng', value: `+${result.reward.toLocaleString()} Mcoin`, inline: true },
+          { name: result.bonusBox ? '🎉 Thưởng Hoàn Thành' : '⏳ Tiếp Theo', 
+            value: result.bonusBox ? '🎁 +1 Lucky Box' : `Ngày ${result.streakDay + 1}`, 
+            inline: false }
+        )
+        .setFooter({ text: result.bonusBox ? 'Chuỗi reset về ngày 1 - Tiếp tục để kiếm thêm!' : 'Điểm danh liên tục để nhận thưởng lớn!' })
+        .setTimestamp();
+
+      return message.reply({ embeds: [ddEmbed] });
     }
   },
 };
