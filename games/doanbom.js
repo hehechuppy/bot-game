@@ -7,6 +7,19 @@ const ROUND_TIME = 10000;
 const CELL_COUNT = 9;
 const BETWEEN_ROUND_DELAY = 5000;
 
+// Hàm an toàn để tránh lỗi 10062
+async function safeRespond(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err?.code === 10062 || err?.code === 40060) {
+      console.warn(`⚠️ Bỏ qua lỗi interaction ${err.code}`);
+      return null;
+    }
+    throw err;
+  }
+}
+
 async function startDoanBom(client, message, store) {
   const joinEmbed = new EmbedBuilder()
     .setColor('#FF4444')
@@ -85,19 +98,19 @@ async function runRound(gameId, store) {
   const collector = roundMsg.createMessageComponentCollector({ time: ROUND_TIME });
   collector.on('collect', async (interaction) => {
     // ✅ Reply ngay lập tức để tránh timeout
-    if (interaction.replied || interaction.deferred) return;
+    await interaction.deferReply({ ephemeral: true });
     
     const userId = interaction.user.id;
     if (!gameData.alive.has(userId)) {
-      return interaction.reply({ content: '❌ Bạn không còn trong trò chơi!', ephemeral: true }).catch(() => {});
+      return await safeRespond(() => interaction.editReply({ content: '❌ Bạn không còn trong trò chơi!' }));
     }
     if (gameData.picks.has(userId)) {
-      return interaction.reply({ content: '❌ Bạn đã chọn ô rồi!', ephemeral: true }).catch(() => {});
+      return await safeRespond(() => interaction.editReply({ content: '❌ Bạn đã chọn ô rồi!' }));
     }
     
     const cellIndex = parseInt(interaction.customId.split('_')[2]);
     gameData.picks.set(userId, cellIndex);
-    await interaction.reply({ content: `✅ Bạn chọn ô số ${cellIndex + 1}!`, ephemeral: true }).catch(() => {});
+    await safeRespond(() => interaction.editReply({ content: `✅ Bạn chọn ô số ${cellIndex + 1}!` }));
   });
 
   collector.on('end', async () => {
