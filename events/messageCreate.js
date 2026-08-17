@@ -30,6 +30,7 @@ module.exports = {
           { name: '🛒 Cửa Hàng', value: '`.shop` • `.mua <id>` • `.sd <id>` • `.box` • `.unbox [số]`', inline: false },
           { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh`', inline: false },
+          { name: '💼 kho đồ đã mua', value: '`.kho`', inline: false },
           { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
         )
         .setFooter({ text: 'Sử dụng .help để xem hướng dẫn', iconURL: client.user.displayAvatarURL() })
