@@ -58,16 +58,16 @@ const SHOP_ITEMS = [
         name: 'Lucky Box',
         description: 'Hộp may mắn bí ẩn — chỉ biết kết quả sau khi mở! Dùng `.box` để xem, `.unbox` để mở.',
         price: 300000,
-        dailyLimit: null
+        dailyLimit: 10
     }
 ];
 
 // Tỷ lệ Lucky Box - KHÔNG hiển thị cho người dùng ở bất kỳ đâu
 const BOX_TIERS = [
-    { chance: 0.50, min: -2000000, max: 500000 },
+    { chance: 0.70, min: -2000000, max: 500000 },
     { chance: 0.20, min: 500000, max: 1000000 },
-    { chance: 0.25, min: 1000000, max: 2000000 },
-    { chance: 0.05, min: 2000000, max: 3000000 }
+    { chance: 0.09, min: 1000000, max: 2000000 },
+    { chance: 0.01, min: 2000000, max: 3000000 }
 ];
 
 function rollBoxReward() {
