@@ -76,7 +76,7 @@ async function runRound(gameId, store) {
     .setDescription(
       `👥 Người còn sống: **${gameData.alive.size}**\n` +
       `💰 Tiền thưởng hiện tại: **${gameData.pot.toLocaleString()} Mcoin**\n\n` +
-      `Chọn 1 trong 9 ô bên dưới trong vòng **10 giây**! Một ô có bom, chọn trúng sẽ bị loại.`
+      `Chọn 1 trong 9 ô bên dưới trong vòng **15 giây**! Một ô có bom, chọn trúng sẽ bị loại.`
     );
 
   const rows = [];
