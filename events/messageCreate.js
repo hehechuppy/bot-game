@@ -62,7 +62,7 @@ module.exports = {
     }
 
     if (command === 'nhapcode') {
-      if (!args[0]) return message.reply('❌ Vui lòng nhập mã code!, .nhapcode <mã>');
+      if (!args[0]) return message.reply('❌ Vui lòng nhập mã code!');
       const codeInput = args[0].toLowerCase();
       if (!store.customCodesMap.has(codeInput)) return message.reply('❌ Mã code không tồn tại!');
       const codeData = store.customCodesMap.get(codeInput);
@@ -221,6 +221,39 @@ module.exports = {
         return message.reply({ embeds: [boxEmbed] });
       }
       return message.reply('📭 Bạn chưa có Lucky Box nào!\n💳 Mua tại `.shop` (ID 6)');
+    }
+
+    if (command === 'kho') {
+      const inv = store.getInventory(userId);
+      if (inv.size === 0) {
+        return message.reply('📭 Kho của bạn trống rỗng!\n💳 Mua vật phẩm tại `.shop`');
+      }
+
+      const dData = store.getDailyData(userId);
+      let desc = '';
+      
+      for (const [itemId, quantity] of inv) {
+        const item = store.SHOP_ITEMS.find(i => i.id === parseInt(itemId));
+        if (!item) continue;
+
+        const used = dData.itemUses[itemId] || 0;
+        const dailyText = item.dailyLimit 
+          ? `\n⏳ Đã dùng: ${used}/${item.dailyLimit} (hôm nay)` 
+          : '';
+        
+        desc += `**#${item.id} — ${item.name}**\n`;
+        desc += `📦 Số lượng: **${quantity}**${dailyText}\n\n`;
+      }
+
+      const khoEmbed = new EmbedBuilder()
+        .setColor('#FF9800')
+        .setTitle('🎒 KHO VẬT PHẨM')
+        .setDescription(desc || '📭 Kho trống!')
+        .setThumbnail(message.author.displayAvatarURL())
+        .setFooter({ text: 'Dùng .sd <id> để kích hoạt vật phẩm' })
+        .setTimestamp();
+      
+      return message.reply({ embeds: [khoEmbed] });
     }
 
     if (command === 'unbox') {
