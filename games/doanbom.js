@@ -3,7 +3,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 const JOIN_TIME = 20000;
 const MIN_PLAYERS = 2;
-const ROUND_TIME = 10000; // đã giảm từ 15s xuống 10s
+const ROUND_TIME = 10000;
 const CELL_COUNT = 9;
 const BETWEEN_ROUND_DELAY = 5000;
 
@@ -26,7 +26,8 @@ async function startDoanBom(client, message, store) {
     pot: 0,
     round: 0,
     picks: new Map(),
-    bombIndex: null
+    bombIndex: null,
+    channel: message.channel
   });
 
   const joinCollector = gameMsg.createMessageComponentCollector({ time: JOIN_TIME });
@@ -36,10 +37,8 @@ async function startDoanBom(client, message, store) {
 
     if (gameData.participants.size < MIN_PLAYERS) {
       store.activeDoanBomGames.delete(gameMsg.id);
-      return gameMsg.edit({
-        content: `❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`,
-        embeds: [],
-        components: []
+      return gameMsg.reply({
+        content: `❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`
       });
     }
 
@@ -78,16 +77,31 @@ async function runRound(gameMsg, store) {
     rows.push(row);
   }
 
-  await gameMsg.edit({ embeds: [roundEmbed], components: rows });
+  // ✅ GỬI TIN NHẮN MỚI thay vì edit
+  const roundMsg = await gameData.channel.send({ embeds: [roundEmbed], components: rows });
 
-  const collector = gameMsg.createMessageComponentCollector({ time: ROUND_TIME });
+  const collector = roundMsg.createMessageComponentCollector({ time: ROUND_TIME });
+  collector.on('collect', (interaction) => {
+    const userId = interaction.user.id;
+    if (!gameData.alive.has(userId)) {
+      return interaction.reply({ content: '❌ Bạn không còn trong trò chơi!', ephemeral: true });
+    }
+    if (gameData.picks.has(userId)) {
+      return interaction.reply({ content: '❌ Bạn đã chọn ô rồi!', ephemeral: true });
+    }
+    const cellIndex = parseInt(interaction.customId.split('_')[2]);
+    gameData.picks.set(userId, cellIndex);
+    interaction.reply({ content: `✅ Bạn chọn ô số ${cellIndex + 1}!`, ephemeral: true });
+  });
+
   collector.on('end', async () => {
-    await resolveRound(gameMsg, store);
+    await resolveRound(roundMsg, store);
   });
 }
 
-async function resolveRound(gameMsg, store) {
-  const gameData = store.activeDoanBomGames.get(gameMsg.id);
+async function resolveRound(roundMsg, store) {
+  const gameData = store.activeDoanBomGames.get(roundMsg.id) || 
+                   Array.from(store.activeDoanBomGames.values()).find(g => g.channel === roundMsg.channel);
   if (!gameData) return;
 
   const bombIndex = gameData.bombIndex;
@@ -104,12 +118,12 @@ async function resolveRound(gameMsg, store) {
   let resultDesc = `💣 Ô có bom: **Ô số ${bombIndex + 1}**\n\n`;
 
   if (eliminated.length > 0) {
-    const bonus = eliminated.length * 20000; // +20k cho mỗi người bị loại
+    const bonus = eliminated.length * 20000;
     gameData.pot += bonus;
     resultDesc += `☠️ Người bị loại:\n${eliminated.map(id => `• ${gameData.participants.get(id)}`).join('\n')}\n`;
     resultDesc += `💰 Tiền thưởng cộng: **+${bonus.toLocaleString()} Mcoin**\n\n`;
   } else {
-    const bonus = 30000; // +30k khi không ai bị loại
+    const bonus = 30000;
     gameData.pot += bonus;
     resultDesc += `✅ Không ai chọn trúng ô bom! Tiền thưởng **+${bonus.toLocaleString()} Mcoin**\n\n`;
   }
@@ -123,13 +137,14 @@ async function resolveRound(gameMsg, store) {
     .setTitle(`💥 KẾT QUẢ VÒNG ${gameData.round}`)
     .setDescription(resultDesc);
 
-  await gameMsg.edit({ embeds: [resultEmbed], components: [] });
+  // ✅ GỬI TIN NHẮN MỚI cho kết quả
+  await gameData.channel.send({ embeds: [resultEmbed] });
 
   if (gameData.alive.size <= 1) {
-    store.activeDoanBomGames.delete(gameMsg.id);
+    store.activeDoanBomGames.delete(roundMsg.id);
 
     if (gameData.alive.size === 1) {
-      gameData.pot += 10000; // +10k cho người sống sót cuối cùng
+      gameData.pot += 10000;
       const winnerId = Array.from(gameData.alive)[0];
       const winnerName = gameData.participants.get(winnerId);
       store.addTungXu(winnerId, gameData.pot);
@@ -141,15 +156,15 @@ async function resolveRound(gameMsg, store) {
           { name: '🎉 Người thắng', value: `**${winnerName}**`, inline: false },
           { name: '💰 Tiền thưởng (gồm +10k người cuối)', value: `**${gameData.pot.toLocaleString()} Mcoin**`, inline: false }
         );
-      await gameMsg.channel.send({ embeds: [winEmbed] });
+      await gameData.channel.send({ embeds: [winEmbed] });
     } else {
-      await gameMsg.channel.send('💥 Không còn ai sống sót! Ván game kết thúc mà không có người thắng cuộc.');
+      await gameData.channel.send('💥 Không còn ai sống sót! Ván game kết thúc mà không có người thắng cuộc.');
     }
     return;
   }
 
   setTimeout(() => {
-    runRound(gameMsg, store);
+    runRound(roundMsg, store);
   }, BETWEEN_ROUND_DELAY);
 }
 
