@@ -104,9 +104,12 @@ async function resolveRound(gameMsg, store) {
   let resultDesc = `💣 Ô có bom: **Ô số ${bombIndex + 1}**\n\n`;
 
   if (eliminated.length > 0) {
-    resultDesc += `☠️ Người bị loại:\n${eliminated.map(id => `• ${gameData.participants.get(id)}`).join('\n')}\n\n`;
+    const bonus = eliminated.length * 20000; // +20k cho mỗi người bị loại
+    gameData.pot += bonus;
+    resultDesc += `☠️ Người bị loại:\n${eliminated.map(id => `• ${gameData.participants.get(id)}`).join('\n')}\n`;
+    resultDesc += `💰 Tiền thưởng cộng: **+${bonus.toLocaleString()} Mcoin**\n\n`;
   } else {
-    const bonus = 1000 * gameData.alive.size;
+    const bonus = 30000; // +30k khi không ai bị loại
     gameData.pot += bonus;
     resultDesc += `✅ Không ai chọn trúng ô bom! Tiền thưởng **+${bonus.toLocaleString()} Mcoin**\n\n`;
   }
@@ -126,6 +129,7 @@ async function resolveRound(gameMsg, store) {
     store.activeDoanBomGames.delete(gameMsg.id);
 
     if (gameData.alive.size === 1) {
+      gameData.pot += 10000; // +10k cho người sống sót cuối cùng
       const winnerId = Array.from(gameData.alive)[0];
       const winnerName = gameData.participants.get(winnerId);
       store.addTungXu(winnerId, gameData.pot);
@@ -133,7 +137,10 @@ async function resolveRound(gameMsg, store) {
       const winEmbed = new EmbedBuilder()
         .setColor('#FFD700')
         .setTitle('🏆 NGƯỜI CHIẾN THẮNG! 🏆')
-        .setDescription(`🎉 **${winnerName}** đã sống sót đến cuối cùng và nhận toàn bộ **${gameData.pot.toLocaleString()} Mcoin**!`);
+        .addFields(
+          { name: '🎉 Người thắng', value: `**${winnerName}**`, inline: false },
+          { name: '💰 Tiền thưởng (gồm +10k người cuối)', value: `**${gameData.pot.toLocaleString()} Mcoin**`, inline: false }
+        );
       await gameMsg.channel.send({ embeds: [winEmbed] });
     } else {
       await gameMsg.channel.send('💥 Không còn ai sống sót! Ván game kết thúc mà không có người thắng cuộc.');
