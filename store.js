@@ -18,9 +18,9 @@ const SHOP_ITEMS = [
         id: 1,
         type: 'winmultiplier',
         name: 'X3 Mcoin',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt)',
         price: 1500000,
-        uses: 5,
+        uses: 2,
         multiplier: 3,
         dailyLimit: 1
     },
@@ -37,9 +37,9 @@ const SHOP_ITEMS = [
         id: 3,
         type: 'winmultiplier',
         name: 'X2 Tiền',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (10 lượt)',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
         price: 1000000,
-        uses: 10,
+        uses: 5,
         multiplier: 2,
         dailyLimit: 5
     },
@@ -58,7 +58,7 @@ const SHOP_ITEMS = [
         name: 'Lucky Box',
         description: 'Hộp may mắn bí ẩn — chỉ biết kết quả sau khi mở! Dùng `.box` để xem, `.unbox` để mở.',
         price: 300000,
-        dailyLimit: 10
+        dailyLimit: 5
     }
 ];
 
