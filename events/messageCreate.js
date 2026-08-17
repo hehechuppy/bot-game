@@ -29,7 +29,7 @@ module.exports = {
           { name: '🛒 Cửa Hàng', value: '`.shop`, `.mua <id>`, `.sd <id>`, `.box`, `.unbox [số]`', inline: false },
           { name: '🎰 Trò Chơi', value: '`.tungxu` (.tx), `.baucua` (.bc), `.doanbom` (.bom), `.masoi` (.ms)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh`', inline: false },
-          { name: '💵 cày mcoin bằng cách treo voice' },
+          { name: '💵 cày mcoin', value: '`bằng cách treo voice`', inline: false },
         );
       return message.reply({ embeds: [helpEmbed] });
     }
