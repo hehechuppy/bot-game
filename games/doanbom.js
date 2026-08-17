@@ -3,7 +3,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 
 const JOIN_TIME = 20000;
 const MIN_PLAYERS = 2;
-const ROUND_TIME = 10000; // đã giảm từ 15s xuống 10s
+const ROUND_TIME = 10000;
 const CELL_COUNT = 9;
 const BETWEEN_ROUND_DELAY = 5000;
 
@@ -19,38 +19,38 @@ async function startDoanBom(client, message, store) {
 
   const gameMsg = await message.reply({ embeds: [joinEmbed], components: [joinRow] });
 
-  store.activeDoanBomGames.set(gameMsg.id, {
+  const gameId = `bom_${gameMsg.id}`;
+  store.activeDoanBomGames.set(gameId, {
     phase: 'joining',
     participants: new Map(),
     alive: new Set(),
     pot: 0,
     round: 0,
     picks: new Map(),
-    bombIndex: null
+    bombIndex: null,
+    channel: message.channel
   });
 
   const joinCollector = gameMsg.createMessageComponentCollector({ time: JOIN_TIME });
   joinCollector.on('end', async () => {
-    const gameData = store.activeDoanBomGames.get(gameMsg.id);
+    const gameData = store.activeDoanBomGames.get(gameId);
     if (!gameData) return;
 
     if (gameData.participants.size < MIN_PLAYERS) {
-      store.activeDoanBomGames.delete(gameMsg.id);
-      return gameMsg.edit({
-        content: `❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`,
-        embeds: [],
-        components: []
-      });
+      store.activeDoanBomGames.delete(gameId);
+      return gameMsg.reply({
+        content: `❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`
+      }).catch(() => {});
     }
 
     gameData.phase = 'playing';
     gameData.alive = new Set(gameData.participants.keys());
-    await runRound(gameMsg, store);
+    await runRound(gameId, store);
   });
 }
 
-async function runRound(gameMsg, store) {
-  const gameData = store.activeDoanBomGames.get(gameMsg.id);
+async function runRound(gameId, store) {
+  const gameData = store.activeDoanBomGames.get(gameId);
   if (!gameData) return;
 
   gameData.round++;
@@ -78,16 +78,35 @@ async function runRound(gameMsg, store) {
     rows.push(row);
   }
 
-  await gameMsg.edit({ embeds: [roundEmbed], components: rows });
+  // ✅ GỬI TIN NHẮN MỚI thay vì edit
+  const roundMsg = await gameData.channel.send({ embeds: [roundEmbed], components: rows }).catch(() => null);
+  if (!roundMsg) return;
 
-  const collector = gameMsg.createMessageComponentCollector({ time: ROUND_TIME });
+  const collector = roundMsg.createMessageComponentCollector({ time: ROUND_TIME });
+  collector.on('collect', async (interaction) => {
+    // ✅ Reply ngay lập tức để tránh timeout
+    if (interaction.replied || interaction.deferred) return;
+    
+    const userId = interaction.user.id;
+    if (!gameData.alive.has(userId)) {
+      return interaction.reply({ content: '❌ Bạn không còn trong trò chơi!', ephemeral: true }).catch(() => {});
+    }
+    if (gameData.picks.has(userId)) {
+      return interaction.reply({ content: '❌ Bạn đã chọn ô rồi!', ephemeral: true }).catch(() => {});
+    }
+    
+    const cellIndex = parseInt(interaction.customId.split('_')[2]);
+    gameData.picks.set(userId, cellIndex);
+    await interaction.reply({ content: `✅ Bạn chọn ô số ${cellIndex + 1}!`, ephemeral: true }).catch(() => {});
+  });
+
   collector.on('end', async () => {
-    await resolveRound(gameMsg, store);
+    await resolveRound(gameId, store);
   });
 }
 
-async function resolveRound(gameMsg, store) {
-  const gameData = store.activeDoanBomGames.get(gameMsg.id);
+async function resolveRound(gameId, store) {
+  const gameData = store.activeDoanBomGames.get(gameId);
   if (!gameData) return;
 
   const bombIndex = gameData.bombIndex;
@@ -104,12 +123,12 @@ async function resolveRound(gameMsg, store) {
   let resultDesc = `💣 Ô có bom: **Ô số ${bombIndex + 1}**\n\n`;
 
   if (eliminated.length > 0) {
-    const bonus = eliminated.length * 20000; // +20k cho mỗi người bị loại
+    const bonus = eliminated.length * 20000;
     gameData.pot += bonus;
     resultDesc += `☠️ Người bị loại:\n${eliminated.map(id => `• ${gameData.participants.get(id)}`).join('\n')}\n`;
     resultDesc += `💰 Tiền thưởng cộng: **+${bonus.toLocaleString()} Mcoin**\n\n`;
   } else {
-    const bonus = 30000; // +30k khi không ai bị loại
+    const bonus = 30000;
     gameData.pot += bonus;
     resultDesc += `✅ Không ai chọn trúng ô bom! Tiền thưởng **+${bonus.toLocaleString()} Mcoin**\n\n`;
   }
@@ -123,13 +142,14 @@ async function resolveRound(gameMsg, store) {
     .setTitle(`💥 KẾT QUẢ VÒNG ${gameData.round}`)
     .setDescription(resultDesc);
 
-  await gameMsg.edit({ embeds: [resultEmbed], components: [] });
+  // ✅ GỬI TIN NHẮN MỚI cho kết quả
+  await gameData.channel.send({ embeds: [resultEmbed] }).catch(() => {});
 
   if (gameData.alive.size <= 1) {
-    store.activeDoanBomGames.delete(gameMsg.id);
+    store.activeDoanBomGames.delete(gameId);
 
     if (gameData.alive.size === 1) {
-      gameData.pot += 10000; // +10k cho người sống sót cuối cùng
+      gameData.pot += 10000;
       const winnerId = Array.from(gameData.alive)[0];
       const winnerName = gameData.participants.get(winnerId);
       store.addTungXu(winnerId, gameData.pot);
@@ -141,15 +161,15 @@ async function resolveRound(gameMsg, store) {
           { name: '🎉 Người thắng', value: `**${winnerName}**`, inline: false },
           { name: '💰 Tiền thưởng (gồm +10k người cuối)', value: `**${gameData.pot.toLocaleString()} Mcoin**`, inline: false }
         );
-      await gameMsg.channel.send({ embeds: [winEmbed] });
+      await gameData.channel.send({ embeds: [winEmbed] }).catch(() => {});
     } else {
-      await gameMsg.channel.send('💥 Không còn ai sống sót! Ván game kết thúc mà không có người thắng cuộc.');
+      await gameData.channel.send('💥 Không còn ai sống sót! Ván game kết thúc mà không có người thắng cuộc.').catch(() => {});
     }
     return;
   }
 
   setTimeout(() => {
-    runRound(gameMsg, store);
+    runRound(gameId, store);
   }, BETWEEN_ROUND_DELAY);
 }
 
