@@ -351,10 +351,10 @@ async function checkAndResetVoiceDaily() {
         }
         
         const rewardStructure = {
-            1: { mcoin: 10000, box: 1 },
-            2: { mcoin: 5000, box: 0 },
-            3: { mcoin: 2000, box: 0 },
-            // Top 4-10: 100 Mcoin
+            1: { mcoin: 50000, box: 2 },
+            2: { mcoin: 25000, box: 1 },
+            3: { mcoin: 10000, box: 0 },
+            // Top 4-10:367 Mcoin
         };
         
         const winners = [];
