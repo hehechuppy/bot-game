@@ -12,13 +12,17 @@ const activeDoanBomGames = new Map();
 const activeMaSoiGames = new Map();
 let backupChannelId = '1492795870012379147';
 
+// ================= VOICE LEADERBOARD (RESET HÀNG TUẦN) =================
+const voiceLeaderboardMap = new Map(); // userId -> { totalSeconds: number, startWeek: timestamp }
+let voiceWeekStart = Date.now(); // timestamp bắt đầu tuần hiện tại
+
 // ================= SHOP / VẬT PHẨM =================
 const SHOP_ITEMS = [
     {
         id: 1,
         type: 'winmultiplier',
         name: 'X3 Mcoin',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt). vật phẩm này đang lỗi ai mua thì tự chịu',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt)',
         price: 1500000,
         uses: 2,
         multiplier: 3,
@@ -302,6 +306,101 @@ function processDiemDanh(userId) {
     return { success: true, streakDay: dayIndex + 1, reward, bonusBox };
 }
 
+// ================= VOICE LEADERBOARD FUNCTIONS =================
+
+// Mỗi 30 giây (trong ready.js), gọi hàm này để cộng thời gian voice
+function addVoiceTime(userId, seconds) {
+    if (!voiceLeaderboardMap.has(userId)) {
+        voiceLeaderboardMap.set(userId, { totalSeconds: 0, startWeek: voiceWeekStart });
+    }
+    const data = voiceLeaderboardMap.get(userId);
+    data.totalSeconds += seconds;
+}
+
+// Lấy top N người có thời gian voice nhiều nhất (tuần này)
+function getVoiceLeaderboard(topN = 50) {
+    const sorted = Array.from(voiceLeaderboardMap.entries())
+        .filter(([_, data]) => data.startWeek === voiceWeekStart) // chỉ lấy tuần hiện tại
+        .sort((a, b) => b[1].totalSeconds - a[1].totalSeconds)
+        .slice(0, topN)
+        .map(([userId, data], index) => [userId, data.totalSeconds]);
+    
+    return sorted;
+}
+
+// Tính timestamp reset tuần tới (mỗi Thứ Hai lúc 00:00 AM)
+function getNextResetTimestamp() {
+    const now = new Date();
+    // Đặt lại sang thứ Hai 00:00 (reset hàng tuần)
+    const daysUntilMonday = (1 - now.getDay() + 7) % 7 || 7;
+    const nextReset = new Date(now);
+    nextReset.setDate(nextReset.getDate() + daysUntilMonday);
+    nextReset.setHours(0, 0, 0, 0);
+    
+    return nextReset.getTime();
+}
+
+// Kiểm tra xem đã đến tuần mới chưa, nếu có thì:
+// 1. Phát thưởng top 1-10
+// 2. Reset bảng xếp hạng
+// 3. Trả về mảng người thắng (để gửi embed)
+async function checkAndResetVoiceWeek() {
+    const now = Date.now();
+    const nextResetTime = getNextResetTimestamp();
+    
+    // Chưa đến lúc reset
+    if (now < nextResetTime - 7 * 24 * 60 * 60 * 1000) {
+        return null;
+    }
+    
+    // Đã đến lúc reset - lấy top 10 tuần hiện tại
+    const top10 = getVoiceLeaderboard(10);
+    
+    if (top10.length === 0) {
+        // Không có ai treo voice tuần này
+        voiceWeekStart = now;
+        return null;
+    }
+    
+    const rewardStructure = {
+        1: { mcoin: 50000, box: 2 },
+        2: { mcoin: 25000, box: 1 },
+        3: { mcoin: 10000, box: 0 },
+        // 4-10: 367 Mcoin
+    };
+    
+    const winners = [];
+    
+    for (let i = 0; i < top10.length; i++) {
+        const [userId, seconds] = top10[i];
+        const rank = i + 1;
+        
+        let reward = rewardStructure[rank] || { mcoin: 367, box: 0 };
+        
+        // Cấp thưởng Mcoin
+        addTungXu(userId, reward.mcoin);
+        
+        // Cấp thưởng Lucky Box nếu có
+        if (reward.box > 0) {
+            addToInventory(userId, 6, reward.box); // itemId 6 = Lucky Box
+        }
+        
+        winners.push({
+            rank,
+            userId,
+            seconds,
+            mcoin: reward.mcoin,
+            box: reward.box
+        });
+    }
+    
+    // Reset bảng xếp hạng cho tuần mới
+    voiceLeaderboardMap.clear();
+    voiceWeekStart = now;
+    
+    return winners;
+}
+
 function generateBackupData() {
     return JSON.stringify({
         economy: Array.from(economyMap.entries()),
@@ -309,75 +408,10 @@ function generateBackupData() {
         usedCodes: Array.from(usedCodesMap.entries(), ([k, v]) => [k, Array.from(v)]),
         customCodes: Array.from(customCodesMap.entries()),
         leaderboard: Array.from(leaderboardMap.entries()),
+        voiceLeaderboard: Array.from(voiceLeaderboardMap.entries()),
+        voiceWeekStart,
         backupChannelId
     }, null, 2);
-}
-
-// ================= VOICE TIME LEADERBOARD (RESET HÀNG TUẦN) =================
-const voiceTimeMap = new Map(); // userId -> số giây đã ở trong voice tuần này
-
-function getWeekStart(ts) {
-  const d = new Date(ts);
-  const day = d.getUTCDay(); // 0 = CN, 1 = T2 ... 6 = T7
-  const diff = day === 0 ? 6 : day - 1; // số ngày lùi về Thứ 2
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() - diff);
-  return d.getTime();
-}
-
-let voiceWeekStart = getWeekStart(Date.now());
-
-function addVoiceTime(userId, seconds) {
-  voiceTimeMap.set(userId, (voiceTimeMap.get(userId) || 0) + seconds);
-}
-
-function getVoiceLeaderboard(limit = 10) {
-  return Array.from(voiceTimeMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
-}
-
-function getNextResetTimestamp() {
-  return voiceWeekStart + 7 * 24 * 60 * 60 * 1000;
-}
-
-const VOICE_TOP3_REWARDS = [
-  { mcoin: 50000, box: 2 }, // top 1
-  { mcoin: 25000, box: 1 }, // top 2
-  { mcoin: 10000, box: 0 }, // top 3
-];
-const VOICE_TOP4_10_REWARD = 367;
-
-// Gọi hàm này định kỳ (vd mỗi phút). Tự phát hiện sang tuần mới -> phát thưởng + reset.
-async function checkAndResetVoiceWeek(client) {
-  const currentWeekStart = getWeekStart(Date.now());
-  if (currentWeekStart === voiceWeekStart) return null; // chưa sang tuần mới, không làm gì
-
-  const top10 = getVoiceLeaderboard(10);
-  const winners = [];
-
-  for (let i = 0; i < top10.length; i++) {
-    const [userId, seconds] = top10[i];
-    const rank = i + 1;
-    let mcoin = 0, box = 0;
-
-    if (rank <= 3) {
-      mcoin = VOICE_TOP3_REWARDS[rank - 1].mcoin;
-      box = VOICE_TOP3_REWARDS[rank - 1].box;
-    } else {
-      mcoin = VOICE_TOP4_10_REWARD;
-    }
-
-    if (mcoin > 0) addTungXu(userId, mcoin);
-    if (box > 0) addToInventory(userId, 6, box);
-
-    winners.push({ userId, rank, mcoin, box, seconds });
-  }
-
-  voiceTimeMap.clear();
-  voiceWeekStart = currentWeekStart;
-
-  return winners; // trả về danh sách để bot có thể thông báo
 }
 
 module.exports = {
@@ -386,6 +420,7 @@ module.exports = {
     usedCodesMap,
     customCodesMap,
     leaderboardMap,
+    voiceLeaderboardMap,
     activeBauCuaGames,
     activeTungXuGames,
     activeDoanBomGames,
@@ -416,6 +451,10 @@ module.exports = {
     getDailyData,
     addTungXu,
     addLeaderboardScore,
+    addVoiceTime,
+    getVoiceLeaderboard,
+    checkAndResetVoiceWeek,
+    getNextResetTimestamp,
     generateBackupData,
     backupChannelId
 };
