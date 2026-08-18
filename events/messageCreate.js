@@ -46,18 +46,19 @@ module.exports = {
       return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'xh.png' })] });
     }
 
-    // ================= XHVOICE: bảng xếp hạng thời gian voice (reset hàng tuần) =================
+    // ================= XHVOICE: BẢNG XẾP HẠNG THỜI GIAN VOICE (RESET HÀNG NGÀY) =================
     if (command === 'xhvoice') {
       const top10 = store.getVoiceLeaderboard(10);
       if (top10.length === 0) {
-        return message.reply('📊 Chưa có ai treo voice tuần này!');
+        return message.reply('📊 Chưa có ai treo voice hôm nay!');
       }
 
+      // Cấu hình phần thưởng khớp với store.js
       const rewardText = (rank) => {
-        if (rank === 1) return '💰 50,000 Mcoin + 🎁 2 Lucky Box';
-        if (rank === 2) return '💰 25,000 Mcoin + 🎁 1 Lucky Box';
-        if (rank === 3) return '💰 10,000 Mcoin';
-        return '💰 367 Mcoin';
+        if (rank === 1) return '💰 10,000 Mcoin + 🎁 1 Lucky Box';
+        if (rank === 2) return '💰 5,000 Mcoin';
+        if (rank === 3) return '💰 2,000 Mcoin';
+        return '💰 100 Mcoin';
       };
 
       let desc = '';
@@ -70,14 +71,16 @@ module.exports = {
         desc += `${medal} <@${uid}> — ⏱️ ${hours}h${mins}m\n${rewardText(rank)}\n\n`;
       }
 
-      const resetAt = Math.floor(store.getNextResetTimestamp() / 1000);
+      // Mốc thời gian 00:00:00 ngày tiếp theo (thời điểm reset)
+      const nextResetMs = store.getStartOfCurrentDay() + 24 * 60 * 60 * 1000;
+      const resetAt = Math.floor(nextResetMs / 1000);
 
       const voiceEmbed = new EmbedBuilder()
         .setColor('#00BFFF')
-        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (TUẦN NÀY)')
+        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (HÔM NAY)')
         .setDescription(desc)
-        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset tuần' })
-        .setTimestamp(store.getNextResetTimestamp());
+        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset ngày lúc 00:00' })
+        .setTimestamp(nextResetMs);
 
       return message.reply({
         embeds: [voiceEmbed],
