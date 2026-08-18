@@ -32,6 +32,7 @@ module.exports = {
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh`', inline: false },
           { name: '💼 kho đồ đã mua', value: '`.kho`', inline: false },
           { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
+          { name: '❗ luật server ＳＨＡＤＯＷ   ＧＬＡＤＥ', value: '`cấm bug tiền`', inline: false },
         )
         .setFooter({ text: 'Sử dụng .help để xem hướng dẫn', iconURL: client.user.displayAvatarURL() })
         .setTimestamp();
