@@ -55,10 +55,10 @@ module.exports = {
 
       // Cấu hình phần thưởng khớp với store.js
       const rewardText = (rank) => {
-        if (rank === 1) return '💰 10,000 Mcoin + 🎁 1 Lucky Box';
-        if (rank === 2) return '💰 5,000 Mcoin';
-        if (rank === 3) return '💰 2,000 Mcoin';
-        return '💰 100 Mcoin';
+        if (rank === 1) return '💰 50,000 Mcoin + 🎁 2 Lucky Box';
+        if (rank === 2) return '💰 25,000 Mcoin + 🎁 1 Lucky Box';
+        if (rank === 3) return '💰 10,000 Mcoin';
+        return '💰 367 Mcoin';
       };
 
       let desc = '';
