@@ -223,7 +223,8 @@ function getDailyData(userId) {
             claimedGame: false,
             claimedEarned: false,
             lastDiemDanh: null,
-            itemUses: {} // itemId -> số lần đã dùng .sd hôm nay (dùng cho giới hạn/ngày)
+            itemUses: {}, // itemId -> số lần đã dùng .sd hôm nay (dùng cho giới hạn dùng)
+            itemBuys: {} // itemId -> số lần đã mua hôm nay (dùng cho giới hạn mua)
         };
         dailyDataMap.set(userId, data);
     }
@@ -247,13 +248,13 @@ function canBuyItemToday(userId, itemId) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item || item.dailyLimit == null) return true;
     const dData = getDailyData(userId);
-    const bought = dData.itemUses[itemId] || 0;
+    const bought = dData.itemBuys[itemId] || 0;
     return bought < item.dailyLimit;
 }
 
 function recordItemBuy(userId, itemId) {
     const dData = getDailyData(userId);
-    dData.itemUses[itemId] = (dData.itemUses[itemId] || 0) + 1;
+    dData.itemBuys[itemId] = (dData.itemBuys[itemId] || 0) + 1;
 }
 
 function addTungXu(userId, amount) {
@@ -354,7 +355,7 @@ async function checkAndResetVoiceDaily() {
             1: { mcoin: 50000, box: 2 },
             2: { mcoin: 25000, box: 1 },
             3: { mcoin: 10000, box: 0 },
-            // Top 4-10:367 Mcoin
+            // Top 4-10: 367 Mcoin
         };
         
         const winners = [];
@@ -363,7 +364,7 @@ async function checkAndResetVoiceDaily() {
             const [userId, seconds] = top10[i];
             const rank = i + 1;
             
-            let reward = rewardStructure[rank] || { mcoin: 100, box: 0 };
+            let reward = rewardStructure[rank] || { mcoin: 367, box: 0 };
             
             // Trao thưởng Mcoin
             addTungXu(userId, reward.mcoin);
