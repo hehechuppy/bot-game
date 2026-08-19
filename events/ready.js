@@ -56,7 +56,7 @@ module.exports = {
     } catch (err) {
       console.error('❌ Lỗi đăng ký slash commands:', err);
     }
-    // --- CÀY XU VOICE: mỗi 60 giây, ai đang ở kênh voice (không phải bot) sẽ nhận random Mcoin ---
+    // --- CÀY XU VOICE: mỗi 120 giây, ai đang ở kênh voice (không phải bot) sẽ nhận random Mcoin ---
     // Nếu đang có buff X2 Voice, số Mcoin nhận được sẽ nhân đôi.
     // Đồng thời cộng dồn thời gian voice cho bảng xếp hạng .xhvoice (reset + phát thưởng hàng tuần).
     setInterval(async () => {
@@ -70,7 +70,7 @@ module.exports = {
               store.addTungXu(member.id, earned);
 
               // Cộng thêm 30 giây vào thời gian voice tuần này
-              store.addVoiceTime(member.id, 60);
+              store.addVoiceTime(member.id, 120);
             }
           });
         });
