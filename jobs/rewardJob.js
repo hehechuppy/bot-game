@@ -39,9 +39,9 @@ function startRewardJob(client) {
 
     if (voiceTop10.length > 0) {
       const voiceRewards = [
-        { mcoin: 300000, box: 3 }, // Top 1
-        { mcoin: 200000, box: 2 },  // Top 2
-        { mcoin: 100000, box: 1 },  // Top 3
+        { mcoin: 300000, box: 2 }, // Top 1
+        { mcoin: 200000, box: 1 },  // Top 2
+        { mcoin: 100000, box: 0 },  // Top 3
         { mcoin: 36000, box: 0 }     // Top 4-10
       ];
 
