@@ -30,10 +30,10 @@ const SHOP_ITEMS = [
         type: 'winmultiplier',
         name: 'X3 Mcoin',
         description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt). (Vật phẩm này đang lỗi hiện chưa fix được, ai mua thì sẽ không có đền bù)',
-        price: 1500000,
-        uses: 2,
+        price: 1000000,
+        uses: 1,
         multiplier: 3,
-        dailyLimit: 1
+        dailyLimit: 2
     },
     {
         id: 2,
