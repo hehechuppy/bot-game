@@ -42,7 +42,7 @@ const SHOP_ITEMS = [
         price: 1000000,
         uses: 5,
         multiplier: 2,
-        dailyLimit: 5
+        dailyLimit: 1
     },
     {
         id: 4,
