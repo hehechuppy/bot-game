@@ -6,6 +6,7 @@ const { startBauCua } = require('../games/baucua');
 const { startTungXu } = require('../games/tungxu');
 const { startDoanBom } = require('../games/doanbom');
 const { startMaSoi } = require('../games/masoi');
+// ⬆️ CHỈ CÓ 1 require dòng discord.js ở trên, không lặp lại
 
 module.exports = {
   name: 'messageCreate',
@@ -46,14 +47,13 @@ module.exports = {
       return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'xh.png' })] });
     }
 
-    // ================= XHVOICE: BẢNG XẾP HẠNG THỜI GIAN VOICE (RESET HÀNG NGÀY) =================
+    // ================= XHVOICE: bảng xếp hạng thời gian voice (reset hàng tuần) =================
     if (command === 'xhvoice') {
       const top10 = store.getVoiceLeaderboard(10);
       if (top10.length === 0) {
-        return message.reply('📊 Chưa có ai treo voice hôm nay!');
+        return message.reply('📊 Chưa có ai treo voice tuần này!');
       }
 
-      // Cấu hình phần thưởng khớp với store.js
       const rewardText = (rank) => {
         if (rank === 1) return '💰 50,000 Mcoin + 🎁 2 Lucky Box';
         if (rank === 2) return '💰 25,000 Mcoin + 🎁 1 Lucky Box';
@@ -71,16 +71,14 @@ module.exports = {
         desc += `${medal} <@${uid}> — ⏱️ ${hours}h${mins}m\n${rewardText(rank)}\n\n`;
       }
 
-      // Mốc thời gian 00:00:00 ngày tiếp theo (thời điểm reset)
-      const nextResetMs = store.getStartOfCurrentDay() + 24 * 60 * 60 * 1000;
-      const resetAt = Math.floor(nextResetMs / 1000);
+      const resetAt = Math.floor(store.getNextResetTimestamp() / 1000);
 
       const voiceEmbed = new EmbedBuilder()
         .setColor('#00BFFF')
-        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (HÔM NAY)')
+        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (TUẦN NÀY)')
         .setDescription(desc)
-        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset ngày lúc 00:00' })
-        .setTimestamp(nextResetMs);
+        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset tuần' })
+        .setTimestamp(store.getNextResetTimestamp());
 
       return message.reply({
         embeds: [voiceEmbed],
