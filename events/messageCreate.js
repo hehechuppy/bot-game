@@ -1,7 +1,6 @@
 // events/messageCreate.js
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const store = require('../store');
-const { createLeaderboardImage } = require('../utils/canvas');
 const { startBauCua } = require('../games/baucua');
 const { startTungXu } = require('../games/tungxu');
 const { startDoanBom } = require('../games/doanbom');
@@ -30,20 +29,53 @@ module.exports = {
           { name: '🛒 Cửa Hàng', value: '`.shop` • `.mua <id>` • `.sd <id>` • `.box` • `.unbox [số]`', inline: false },
           { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh` • `.xhvoice`', inline: false },
-          { name: '💼 kho đồ đã mua', value: '`.kho`', inline: false },
+          { name: '💼 Kho đồ đã mua', value: '`.kho`', inline: false },
           { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
-          { name: '❗ luật server ＳＨＡＤＯＷ   ＧＬＡＤＥ', value: '`cấm bug tiền`', inline: false },
+          { name: '❗ Luật server ＳＨＡＤＯＷ  ＧＬＡＤＥ', value: '`cấm bug tiền`', inline: false },
         )
         .setFooter({ text: 'Sử dụng .help để xem hướng dẫn', iconURL: client.user.displayAvatarURL() })
         .setTimestamp();
       return message.reply({ embeds: [helpEmbed] });
     }
 
+    // ================= XH: BẢNG XẾP HẠNG PHÚ HỘ MCOIN =================
     if (command === 'xh') {
       if (store.economyMap.size === 0) return message.reply('📊 Bảng xếp hạng trống!');
-      const sorted = Array.from(store.economyMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
-      const buffer = await createLeaderboardImage(sorted, client);
-      return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'xh.png' })] });
+
+      const sorted = Array.from(store.economyMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+      const medals = ['🥇', '🥈', '🥉'];
+      const descriptionLines = [];
+
+      for (let i = 0; i < sorted.length; i++) {
+        const [uid, amount] = sorted[i];
+        let displayName = 'Người dùng ẩn danh';
+
+        // Lấy tên người chơi từ cache hoặc fetch trực tiếp từ API Discord
+        try {
+          const user = await client.users.fetch(uid);
+          displayName = user.globalName || user.username;
+        } catch (err) {
+          displayName = `User (${uid.slice(-4)})`;
+        }
+
+        const rankIcon = medals[i] || `**#${i + 1}**`;
+        const formattedAmount = amount.toLocaleString('vi-VN');
+
+        descriptionLines.push(`${rankIcon} **${displayName}** — \`${formattedAmount} Mcoin\``);
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle('🏆 BẢNG XẾP HẠNG PHÚ HỘ MCOIN 🏆')
+        .setDescription(descriptionLines.join('\n\n'))
+        .setThumbnail(message.guild.iconURL({ dynamic: true }) || null)
+        .setFooter({ text: `Yêu cầu bởi ${message.author.username}`, iconURL: message.author.displayAvatarURL() })
+        .setTimestamp();
+
+      return message.reply({ embeds: [embed] });
     }
 
     // ================= XHVOICE: BẢNG XẾP HẠNG THỜI GIAN VOICE (RESET HÀNG NGÀY) =================
@@ -53,7 +85,6 @@ module.exports = {
         return message.reply('📊 Chưa có ai treo voice hôm nay!');
       }
 
-      // Cấu hình phần thưởng khớp với store.js
       const rewardText = (rank) => {
         if (rank === 1) return '💰 50,000 Mcoin + 🎁 2 Lucky Box';
         if (rank === 2) return '💰 25,000 Mcoin + 🎁 1 Lucky Box';
@@ -71,7 +102,6 @@ module.exports = {
         desc += `${medal} <@${uid}> — ⏱️ ${hours}h${mins}m\n${rewardText(rank)}\n\n`;
       }
 
-      // Mốc thời gian 00:00:00 ngày tiếp theo (thời điểm reset)
       const nextResetMs = store.getStartOfCurrentDay() + 24 * 60 * 60 * 1000;
       const resetAt = Math.floor(nextResetMs / 1000);
 
