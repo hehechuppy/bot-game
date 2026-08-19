@@ -1,11 +1,13 @@
 // events/ready.js
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const store = require('../store');
+
 module.exports = {
   name: 'ready',
   once: true,
   async execute(client) {
     console.log(`Bot đã đăng nhập thành công: ${client.user.tag}`);
+    
     // --- ĐĂNG KÝ SLASH COMMANDS ---
     const commands = [
       new SlashCommandBuilder()
@@ -50,59 +52,63 @@ module.exports = {
           option.setName('file').setDescription('File JSON backup').setRequired(true)
         )
     ];
+
     try {
       await client.application.commands.set(commands);
       console.log('✅ Đã đăng ký 4 slash commands (admin)');
     } catch (err) {
       console.error('❌ Lỗi đăng ký slash commands:', err);
     }
-    // --- CÀY XU VOICE: mỗi 120 giây, ai đang ở kênh voice (không phải bot) sẽ nhận random Mcoin ---
-    // Nếu đang có buff X2 Voice, số Mcoin nhận được sẽ nhân đôi.
-    // Đồng thời cộng dồn thời gian voice cho bảng xếp hạng .xhvoice (reset + phát thưởng hàng tuần).
+
+    // ========== CÀY XU VOICE: MỖI 1 PHÚT CỘNG THÊM 60 GIÂY ==========
+    // Ai đang ở voice sẽ nhận random Mcoin + cộng voice time
+    // Nếu cùng phút sẽ đứng cùng top nhau
+    // Mỗi 0h sẽ phát thưởng x2 cho cả .xhvoice và .xh
     setInterval(async () => {
       client.guilds.cache.forEach(guild => {
         guild.channels.cache.filter(c => c.isVoiceBased()).forEach(channel => {
           channel.members.forEach(member => {
             if (!member.user.bot) {
-              const baseEarned = Math.floor(Math.random() * 4001) + 1000; // random 1000 -> 5000
+              // Nhận random Mcoin (1000-5000)
+              const baseEarned = Math.floor(Math.random() * 4001) + 1000;
               const multiplier = store.getVoiceMultiplier(member.id);
               const earned = baseEarned * multiplier;
               store.addTungXu(member.id, earned);
 
-              // Cộng thêm 30 giây vào thời gian voice tuần này
-              store.addVoiceTime(member.id, 120);
+              // Cộng 60 giây (1 phút) vào thời gian voice hằng ngày
+              store.addVoiceTime(member.id, 60);
             }
           });
         });
       });
 
-      // Kiểm tra xem đã sang tuần mới chưa -> nếu có, tự động phát thưởng top 1-10 và reset bảng
+      // Kiểm tra xem đã sang ngày mới chưa -> nếu có, tự động phát thưởng top 1-10 (x2) và reset bảng
       try {
-        const winners = await store.checkAndResetVoiceWeek();
-        if (winners && winners.length > 0) {
-          const desc = winners.map(w => {
+        const result = await store.checkAndResetVoiceDay();
+        if (result && result.winners && result.winners.length > 0) {
+          const desc = result.winners.map(w => {
             const hours = Math.floor(w.seconds / 3600);
             const mins = Math.floor((w.seconds % 3600) / 60);
             const boxText = w.box > 0 ? ` + 🎁 ${w.box} Lucky Box` : '';
             return `**#${w.rank}** — <@${w.userId}> (⏱️ ${hours}h${mins}m)\n💰 +${w.mcoin.toLocaleString()} Mcoin${boxText}`;
           }).join('\n\n');
 
-          const resultEmbed = new EmbedBuilder()
-            .setColor('#FFD700')
-            .setTitle('🏆 KẾT QUẢ BẢNG XẾP HẠNG VOICE TUẦN NÀY')
+          const voiceEmbed = new EmbedBuilder()
+            .setColor('#00BFFF')
+            .setTitle('🎙️ KẾT QUẢ BẢNG XẾP HẠNG VOICE HÔM NAY (x2 THƯỞNG)')
             .setDescription(desc)
-            .setFooter({ text: 'Bảng xếp hạng đã được reset cho tuần mới!' })
+            .setFooter({ text: 'Bảng xếp hạng đã được reset cho ngày mới!' })
             .setTimestamp();
 
           client.guilds.cache.forEach(guild => {
             if (guild.systemChannel) {
-              guild.systemChannel.send({ embeds: [resultEmbed] }).catch(() => {});
+              guild.systemChannel.send({ embeds: [voiceEmbed] }).catch(() => {});
             }
           });
         }
       } catch (err) {
         console.error('❌ Lỗi khi reset/phát thưởng bảng xếp hạng voice:', err);
       }
-    }, 30000);
+    }, 60000); // 60 giây = 1 phút
   },
 };
