@@ -71,9 +71,9 @@ async function checkAndResetVoiceDay() {
   // ⚠️ LƯU Ý: rewardTiers được định nghĩa ở đây
   // Nếu muốn thay đổi thưởng, chỉnh sửa dòng dưới
   const rewardTiers = [
-    { mcoin: 300000, box: 3 }, // Top 1: 300k + 3 hộp
-    { mcoin: 200000, box: 2 },  // Top 2: 200k + 2 hộp
-    { mcoin: 100000, box: 1 },  // Top 3: 100k + 1 hộp
+    { mcoin: 300000, box: 2 }, // Top 1: 300k + 3 hộp
+    { mcoin: 200000, box: 1 },  // Top 2: 200k + 2 hộp
+    { mcoin: 100000, box: 0 },  // Top 3: 100k + 1 hộp
     { mcoin: 36000, box: 0 }    // Top 4-10: 36k mỗi người
   ];
   
