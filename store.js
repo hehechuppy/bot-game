@@ -26,16 +26,6 @@ let voiceDayStart = getStartOfCurrentDay(); // timestamp bắt đầu ngày hi�
 // ================= SHOP / VẬT PHẨM =================
 const SHOP_ITEMS = [
     {
-        id: 1,
-        type: 'winmultiplier',
-        name: 'X3 Mcoin',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (1 lượt).',
-        price: 1000000,
-        uses: 1,
-        multiplier: 3,
-        dailyLimit: 2
-    },
-    {
         id: 2,
         type: 'voicetime',
         name: 'X2 Voice',
@@ -48,11 +38,11 @@ const SHOP_ITEMS = [
         id: 3,
         type: 'winmultiplier',
         name: 'X2 Tiền',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt)',
         price: 1000000,
-        uses: 5,
+        uses: 2,
         multiplier: 2,
-        dailyLimit: 5
+        dailyLimit: 2
     },
     {
         id: 4,
@@ -61,7 +51,7 @@ const SHOP_ITEMS = [
         description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại toàn bộ tiền đã thua (1 lần).',
         price: 1000000,
         uses: 1,
-        dailyLimit: 1
+        dailyLimit: 2
     },
     {
         id: 6,
