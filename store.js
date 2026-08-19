@@ -446,6 +446,7 @@ module.exports = {
     addVoiceTime,
     getVoiceLeaderboard,
     checkAndResetVoiceDaily,
+    checkAndResetVoiceWeek: checkAndResetVoiceDaily, // Fix lỗi TypeError ở ready.js
     getStartOfCurrentDay,
     generateBackupData,
     backupChannelId,
