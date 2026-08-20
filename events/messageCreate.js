@@ -224,7 +224,10 @@ module.exports = {
       }
 
       if (item.type === 'box') {
-        const remaining = item.dailyLimit - (store.getDailyData(userId).itemUses[itemId] || 0);
+        // FIX: Dùng itemBuys (mua) không phải itemUses (dùng)
+        const dData = store.getDailyData(userId);
+        const bought = dData.itemBuys[itemId] || 0;
+        const remaining = item.dailyLimit - bought;
         return message.reply(`✅ Đã mua **${item.name}**!\n📦 Dùng \`.box\` để xem, \`.unbox\` để mở.\n⏳ Còn lại: **${remaining}/${item.dailyLimit}** cái hôm nay`);
       }
       return message.reply(`✅ Đã mua **${item.name}**!\n⚡ Dùng \`.sd ${item.id}\` để kích hoạt.`);
