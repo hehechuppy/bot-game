@@ -19,7 +19,12 @@ const client = new Client({
 client.on('error', (err) => console.error('❌ Client error:', err));
 process.on('unhandledRejection', (err) => console.error('❌ Unhandled rejection:', err));
 
-client.once('ready', (...args) => readyHandler.execute(client, ...args));
+client.once('ready', async (...args) => {
+    readyHandler.execute(client, ...args);
+    
+    // ✅ Setup periodic backup (mỗi 30 phút)
+    await backup.setupBackup(client, 30 * 60 * 1000);
+});
 
 client.on('messageCreate', async (...args) => {
     try {
