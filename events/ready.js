@@ -43,13 +43,36 @@ module.exports = {
           option.setName('channel').setDescription('Kênh để lưu backup').setRequired(true)
         ),
 
-      new SlashCommandBuilder()
+           new SlashCommandBuilder()
         .setName('backup')
         .setDescription('💾 Khôi phục dữ liệu từ file (Admin)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .setDMPermission(false)
         .addAttachmentOption(option =>
           option.setName('file').setDescription('File JSON backup').setRequired(true)
+        ),
+
+      new SlashCommandBuilder()
+        .setName('quanli')
+        .setDescription('💰 Chỉnh sửa số dư Mcoin của người chơi (Admin)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .setDMPermission(false)
+        .addUserOption(option =>
+          option.setName('target').setDescription('Người chơi cần chỉnh').setRequired(true)
+        )
+        .addStringOption(option =>
+          option.setName('action').setDescription('Hành động').setRequired(true)
+            .addChoices(
+              { name: 'Đặt số dư thành (set)', value: 'set' },
+              { name: 'Cộng thêm (add)', value: 'add' },
+              { name: 'Trừ bớt (subtract)', value: 'subtract' }
+            )
+        )
+        .addIntegerOption(option =>
+          option.setName('amount').setDescription('Số Mcoin').setRequired(true).setMinValue(0)
+        )
+        .addStringOption(option =>
+          option.setName('reason').setDescription('Lý do (không bắt buộc)').setRequired(false)
         )
     ];
 
