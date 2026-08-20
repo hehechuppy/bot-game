@@ -422,8 +422,14 @@ function restoreBackupData(jsonData) {
         if (data.inventory) {
             inventoryMap.clear();
             data.inventory.forEach(([userId, userInvArray]) => {
-                inventoryMap.set(userId, new Map(userInvArray));
+                // FIX: Convert itemId keys về number (JSON stringify/parse convert thành string)
+                const userInvMap = new Map();
+                userInvArray.forEach(([itemId, qty]) => {
+                    userInvMap.set(parseInt(itemId), qty);
+                });
+                inventoryMap.set(userId, userInvMap);
             });
+            console.log('✅ Inventory restored:', inventoryMap.size, 'users');
         }
         if (data.activeBuffs) {
             activeBuffsMap.clear();
@@ -447,9 +453,10 @@ function restoreBackupData(jsonData) {
         if (data.backupChannelId) {
             backupChannelId = data.backupChannelId;
         }
+        console.log('✅ Backup restore thành công!');
         return true;
     } catch (err) {
-        console.error('Lỗi khi khôi phục dữ liệu từ Backup:', err);
+        console.error('❌ Lỗi khi khôi phục dữ liệu từ Backup:', err);
         return false;
     }
 }
