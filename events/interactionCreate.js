@@ -351,7 +351,7 @@ module.exports = {
           } catch (e) {
             console.error(e);
 
-            return await safeRespond(() =>
+                       return await safeRespond(() =>
               interaction.reply({
                 content:
                   '❌ File lỗi hoặc không đọc được.',
@@ -359,6 +359,62 @@ module.exports = {
               })
             );
           }
+        }
+
+        // ---------------- QUẢN LÝ SỐ DƯ ----------------
+        if (commandName === 'quanli') {
+          if (!isAdmin) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Bạn không có quyền sử dụng lệnh này!',
+                ephemeral: true
+              })
+            );
+          }
+
+          const target = interaction.options.getUser('target');
+          const action = interaction.options.getString('action');
+          const amount = interaction.options.getInteger('amount');
+          const reason = interaction.options.getString('reason') || 'Không có lý do';
+
+          const before = store.economyMap.get(target.id) || 0;
+          let after, actionLabel, deltaText;
+
+          if (action === 'set') {
+            after = amount;
+            actionLabel = 'Đặt số dư thành';
+            deltaText = `${amount.toLocaleString()} Mcoin`;
+          } else if (action === 'add') {
+            after = before + amount;
+            actionLabel = 'Cộng thêm';
+            deltaText = `+${amount.toLocaleString()} Mcoin`;
+          } else {
+            after = Math.max(0, before - amount);
+            actionLabel = 'Trừ bớt';
+            deltaText = `-${amount.toLocaleString()} Mcoin`;
+          }
+
+          store.economyMap.set(target.id, after);
+
+          const logEmbed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('💰 QUẢN LÝ SỐ DƯ NGƯỜI CHƠI')
+            .addFields(
+              { name: '🛠️ Quản trị viên', value: `${interaction.user.username}`, inline: true },
+              { name: '🎯 Người chơi', value: `${target.username}`, inline: true },
+              { name: '📋 Hành động', value: actionLabel, inline: true },
+              { name: '💵 Thay đổi', value: deltaText, inline: true },
+              { name: '📉 Số dư trước', value: `${before.toLocaleString()} Mcoin`, inline: true },
+              { name: '📈 Số dư sau', value: `${after.toLocaleString()} Mcoin`, inline: true },
+              { name: '📝 Lý do', value: reason, inline: false }
+            )
+            .setFooter({ text: `ID người chơi: ${target.id}` })
+            .setTimestamp();
+
+          // KHÔNG dùng ephemeral -> để mọi người trong kênh đều thấy log này
+          return await safeRespond(() =>
+            interaction.reply({ embeds: [logEmbed] })
+          );
         }
 
         return;
