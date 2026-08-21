@@ -79,8 +79,7 @@ module.exports = {
             .slice(0, 25);
 
           const choices = filtered.map(code => ({
-            name:
-              `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
+            name: `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
             value: code
           }));
 
@@ -98,18 +97,82 @@ module.exports = {
       if (interaction.isChatInputCommand()) {
         const { commandName } = interaction;
 
-        const isAdmin =
-          interaction.member?.permissions?.has(
-            PermissionFlagsBits.Administrator
+        const isAdmin = interaction.member?.permissions?.has(
+          PermissionFlagsBits.Administrator
+        );
+
+        // ================= TANGQUA - Tặng vật phẩm =================
+        if (commandName === 'tangqua') {
+          if (!isAdmin) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Bạn không có quyền sử dụng lệnh này!',
+                ephemeral: true
+              })
+            );
+          }
+
+          const targetUser = interaction.options.getUser('user');
+          const itemId = interaction.options.getInteger('item');
+          const quantity = interaction.options.getInteger('quantity');
+
+          if (!targetUser) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Vui lòng chỉ định người nhận!',
+                ephemeral: true
+              })
+            );
+          }
+
+          const item = store.SHOP_ITEMS.find(i => i.id === itemId);
+          if (!item) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: `❌ Không tìm thấy vật phẩm ID ${itemId}!`,
+                ephemeral: true
+              })
+            );
+          }
+
+          if (quantity <= 0) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Số lượng phải lớn hơn 0!',
+                ephemeral: true
+              })
+            );
+          }
+
+          store.addToInventory(targetUser.id, itemId, quantity);
+
+          const giftEmbed = new EmbedBuilder()
+            .setColor('#FF69B4')
+            .setTitle('🎁 TẶNG VẬT PHẨM - THÀNH CÔNG')
+            .addFields(
+              { name: '🎉 Người Nhận', value: `${targetUser.username}`, inline: true },
+              { name: '📦 Vật Phẩm', value: `${item.name} (ID: ${item.id})`, inline: true },
+              { name: '📊 Số Lượng', value: `**${quantity}** cái`, inline: true },
+              { name: '💰 Giá Trị', value: `${(item.price * quantity).toLocaleString()} Mcoin`, inline: true },
+              { name: '👨‍💼 Người Tặng', value: interaction.user.username, inline: true }
+            )
+            .setFooter({ text: 'Vật phẩm đã được thêm vào kho của người nhận' })
+            .setTimestamp();
+
+          return await safeRespond(() =>
+            interaction.reply({
+              embeds: [giftEmbed],
+              ephemeral: false
+            })
           );
+        }
 
         // ---------------- TAO CODE ----------------
         if (commandName === 'taocode') {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Bạn không có quyền sử dụng lệnh tạo mã code này!',
+                content: '❌ Bạn không có quyền sử dụng lệnh tạo mã code này!',
                 ephemeral: true
               })
             );
@@ -120,17 +183,13 @@ module.exports = {
             .toLowerCase()
             .trim();
 
-          const rewardAmount =
-            interaction.options.getInteger('reward');
-
-          const durationMinutes =
-            interaction.options.getInteger('duration');
+          const rewardAmount = interaction.options.getInteger('reward');
+          const durationMinutes = interaction.options.getInteger('duration');
 
           if (store.customCodesMap.has(codeName)) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  `❌ Mã code \`${codeName}\` đã tồn tại!`,
+                content: `❌ Mã code \`${codeName}\` đã tồn tại!`,
                 ephemeral: true
               })
             );
@@ -138,13 +197,8 @@ module.exports = {
 
           let expiresAt = null;
 
-          if (
-            durationMinutes &&
-            durationMinutes > 0
-          ) {
-            expiresAt =
-              Date.now() +
-              durationMinutes * 60 * 1000;
+          if (durationMinutes && durationMinutes > 0) {
+            expiresAt = Date.now() + durationMinutes * 60 * 1000;
           }
 
           store.customCodesMap.set(codeName, {
@@ -156,17 +210,14 @@ module.exports = {
             ? `<t:${Math.floor(expiresAt / 1000)}:R>`
             : 'Vĩnh viễn';
 
-          const successEmbed =
-            new EmbedBuilder()
-              .setColor('#00FFCC')
-              .setTitle(
-                '🎟️ TẠO MÃ CODE THÀNH CÔNG'
-              )
-              .setDescription(
-                `• Mã: \`${codeName}\`\n` +
-                `• Phần thưởng: **+${rewardAmount.toLocaleString()} Mcoin**\n` +
-                `• Thời hạn: **${timeStr}**`
-              );
+          const successEmbed = new EmbedBuilder()
+            .setColor('#00FFCC')
+            .setTitle('🎟️ TẠO MÃ CODE THÀNH CÔNG')
+            .setDescription(
+              `• Mã: \`${codeName}\`\n` +
+              `• Phần thưởng: **+${rewardAmount.toLocaleString()} Mcoin**\n` +
+              `• Thời hạn: **${timeStr}**`
+            );
 
           return await safeRespond(() =>
             interaction.reply({
@@ -180,8 +231,7 @@ module.exports = {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Bạn không có quyền sử dụng lệnh xóa code này!',
+                content: '❌ Bạn không có quyền sử dụng lệnh xóa code này!',
                 ephemeral: true
               })
             );
@@ -195,30 +245,24 @@ module.exports = {
           if (!store.customCodesMap.has(codeName)) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  `❌ Mã code \`${codeName}\` không tồn tại!`,
+                content: `❌ Mã code \`${codeName}\` không tồn tại!`,
                 ephemeral: true
               })
             );
           }
 
-          const deletedCode =
-            store.customCodesMap.get(codeName);
-
+          const deletedCode = store.customCodesMap.get(codeName);
           store.customCodesMap.delete(codeName);
 
-          const successEmbed =
-            new EmbedBuilder()
-              .setColor('#FF4444')
-              .setTitle(
-                '🗑️ ĐÃ XÓA MÃ CODE'
-              )
-              .setDescription(
-                `• Mã: \`${codeName}\`\n` +
-                `• Phần thưởng cũ: **+${deletedCode.reward.toLocaleString()} Mcoin**\n` +
-                `• Người xóa: ${interaction.user.username}`
-              )
-              .setTimestamp();
+          const successEmbed = new EmbedBuilder()
+            .setColor('#FF4444')
+            .setTitle('🗑️ ĐÃ XÓA MÃ CODE')
+            .setDescription(
+              `• Mã: \`${codeName}\`\n` +
+              `• Phần thưởng cũ: **+${deletedCode.reward.toLocaleString()} Mcoin**\n` +
+              `• Người xóa: ${interaction.user.username}`
+            )
+            .setTimestamp();
 
           return await safeRespond(() =>
             interaction.reply({
@@ -232,22 +276,18 @@ module.exports = {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Bạn không có quyền quản trị viên!',
+                content: '❌ Bạn không có quyền quản trị viên!',
                 ephemeral: true
               })
             );
           }
 
-          const channel =
-            interaction.options.getChannel('channel');
-
+          const channel = interaction.options.getChannel('channel');
           store.backupChannelId = channel.id;
 
           return await safeRespond(() =>
             interaction.reply({
-              content:
-                `✅ Đã cài đặt kênh backup tại: ${channel}`,
+              content: `✅ Đã cài đặt kênh backup tại: ${channel}`,
               ephemeral: true
             })
           );
@@ -258,15 +298,13 @@ module.exports = {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Bạn không có quyền quản trị viên!',
+                content: '❌ Bạn không có quyền quản trị viên!',
                 ephemeral: true
               })
             );
           }
 
-          const attachment =
-            interaction.options.getAttachment('file');
+          const attachment = interaction.options.getAttachment('file');
 
           if (!attachment) {
             return await safeRespond(() =>
@@ -278,83 +316,57 @@ module.exports = {
           }
 
           try {
-            const response =
-              await fetch(attachment.url);
+            const response = await fetch(attachment.url);
 
             if (!response.ok) {
-              throw new Error(
-                `HTTP ${response.status}`
-              );
+              throw new Error(`HTTP ${response.status}`);
             }
 
-            const data =
-              JSON.parse(await response.text());
+            const data = JSON.parse(await response.text());
 
             if (data.economy) {
               store.economyMap.clear();
-
-              data.economy.forEach(([k, v]) =>
-                store.economyMap.set(k, v)
-              );
+              data.economy.forEach(([k, v]) => store.economyMap.set(k, v));
             }
 
             if (data.dailyData) {
               store.dailyDataMap.clear();
-
-              data.dailyData.forEach(([k, v]) =>
-                store.dailyDataMap.set(k, v)
-              );
+              data.dailyData.forEach(([k, v]) => store.dailyDataMap.set(k, v));
             }
 
             if (data.usedCodes) {
               store.usedCodesMap.clear();
-
               data.usedCodes.forEach(([k, v]) =>
-                store.usedCodesMap.set(
-                  k,
-                  new Set(v)
-                )
+                store.usedCodesMap.set(k, new Set(v))
               );
             }
 
             if (data.customCodes) {
               store.customCodesMap.clear();
-
-              data.customCodes.forEach(([k, v]) =>
-                store.customCodesMap.set(k, v)
-              );
+              data.customCodes.forEach(([k, v]) => store.customCodesMap.set(k, v));
             }
 
             if (data.leaderboard) {
               store.leaderboardMap.clear();
-
-              data.leaderboard.forEach(([k, v]) =>
-                store.leaderboardMap.set(k, v)
-              );
+              data.leaderboard.forEach(([k, v]) => store.leaderboardMap.set(k, v));
             }
 
-            if (
-              data.backupChannelId !== undefined
-            ) {
-              store.backupChannelId =
-                data.backupChannelId;
+            if (data.backupChannelId !== undefined) {
+              store.backupChannelId = data.backupChannelId;
             }
 
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '✅ Khôi phục thành công!',
+                content: '✅ Khôi phục thành công!',
                 ephemeral: true
               })
             );
 
           } catch (e) {
             console.error(e);
-
-                       return await safeRespond(() =>
+            return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ File lỗi hoặc không đọc được.',
+                content: '❌ File lỗi hoặc không đọc được.',
                 ephemeral: true
               })
             );
@@ -411,7 +423,6 @@ module.exports = {
             .setFooter({ text: `ID người chơi: ${target.id}` })
             .setTimestamp();
 
-          // KHÔNG dùng ephemeral -> để mọi người trong kênh đều thấy log này
           return await safeRespond(() =>
             interaction.reply({ embeds: [logEmbed] })
           );
@@ -424,63 +435,38 @@ module.exports = {
       // BUTTONS
       // =========================================================
       if (interaction.isButton()) {
-        const customId =
-          interaction.customId;
+        const customId = interaction.customId;
 
         // =======================================================
         // DAILY
         // =======================================================
-        if (
-          customId.startsWith(
-            'claim_daily_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        if (customId.startsWith('claim_daily_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const targetUserId =
-            customId.split('_')[2];
+          const targetUserId = customId.split('_')[2];
 
-          if (
-            interaction.user.id !==
-            targetUserId
-          ) {
+          if (interaction.user.id !== targetUserId) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Đây không phải bảng nhiệm vụ của bạn!'
+                content: '❌ Đây không phải bảng nhiệm vụ của bạn!'
               })
             );
           }
 
-          const dData =
-            store.getDailyData(
-              targetUserId
-            );
+          const dData = store.getDailyData(targetUserId);
 
-          if (
-            dData.claimedMsg &&
-            dData.claimedGame &&
-            dData.claimedEarned
-          ) {
+          if (dData.claimedMsg && dData.claimedGame && dData.claimedEarned) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Bạn đã nhận toàn bộ phần thưởng nhiệm vụ hôm nay rồi!'
+                content: '❌ Bạn đã nhận toàn bộ phần thưởng nhiệm vụ hôm nay rồi!'
               })
             );
           }
 
-          if (
-            dData.messages < 20 ||
-            dData.games < 3 ||
-            dData.earned < 2000
-          ) {
+          if (dData.messages < 20 || dData.games < 3 || dData.earned < 2000) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Bạn chưa hoàn thành đủ các mốc nhiệm vụ!'
+                content: '❌ Bạn chưa hoàn thành đủ các mốc nhiệm vụ!'
               })
             );
           }
@@ -490,571 +476,305 @@ module.exports = {
           dData.claimedEarned = true;
 
           const rewardBonus = 5000;
-
-          store.addTungXu(
-            targetUserId,
-            rewardBonus
-          );
+          store.addTungXu(targetUserId, rewardBonus);
 
           return await safeRespond(() =>
             interaction.editReply({
-              content:
-                `🎉 Chúc mừng bạn đã hoàn thành nhiệm vụ hằng ngày và nhận được **+${rewardBonus.toLocaleString()} Mcoin** phần thưởng!`
+              content: `🎉 Chúc mừng bạn đã hoàn thành nhiệm vụ hằng ngày và nhận được **+${rewardBonus.toLocaleString()} Mcoin** phần thưởng!`
             })
           );
         }
 
         // =======================================================
-        // BAU CUA - FIX: Thêm check replied/deferred
+        // BAU CUA
         // =======================================================
         if (customId.startsWith('bc_')) {
-          // ✅ CHECK TRƯỚC KHI XỬ LÝ
-          if (interaction.replied || interaction.deferred) {
-            console.warn('⚠️ Button BC: Interaction đã được reply rồi');
-            return;
-          }
+          if (interaction.replied || interaction.deferred) return;
 
-          const gameMsgId =
-            interaction.message.id;
-
-          const gameData =
-            store.activeBauCuaGames.get(
-              gameMsgId
-            );
+          const gameMsgId = interaction.message.id;
+          const gameData = store.activeBauCuaGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Sòng đã kết thúc!',
+                content: '❌ Sòng đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const choice =
-            customId.replace(
-              'bc_',
-              ''
+          const choice = customId.replace('bc_', '');
+          const userId = interaction.user.id;
+          const currentBal = store.economyMap.get(userId) || 0;
+
+          const modal = new ModalBuilder()
+            .setCustomId(`modal_bc_${choice}_${gameMsgId}`)
+            .setTitle(`Cược ${choice.toUpperCase()}`)
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId('bc_bet_input')
+                  .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`)
+                  .setStyle(TextInputStyle.Short)
+                  .setRequired(true)
+              )
             );
 
-          const userId =
-            interaction.user.id;
-
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          const modal =
-            new ModalBuilder()
-              .setCustomId(
-                `modal_bc_${choice}_${gameMsgId}`
-              )
-              .setTitle(
-                `Cược ${choice.toUpperCase()}`
-              )
-              .addComponents(
-                new ActionRowBuilder()
-                  .addComponents(
-                    new TextInputBuilder()
-                      .setCustomId(
-                        'bc_bet_input'
-                      )
-                      .setLabel(
-                        `Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`
-                      )
-                      .setStyle(
-                        TextInputStyle.Short
-                      )
-                      .setRequired(true)
-                  )
-              );
-
-          return await safeRespond(() =>
-            interaction.showModal(
-              modal
-            )
-          );
+          return await safeRespond(() => interaction.showModal(modal));
         }
 
         // =======================================================
-        // TUNG XU - FIX: Thêm check replied/deferred
+        // TUNG XU
         // =======================================================
-        if (
-          customId ===
-            'tx_multi_ngua' ||
-          customId ===
-            'tx_multi_sap'
-        ) {
-          // ✅ CHECK TRƯỚC KHI XỬ LÝ
-          if (interaction.replied || interaction.deferred) {
-            console.warn('⚠️ Button TX: Interaction đã được reply rồi');
-            return;
-          }
+        if (customId === 'tx_multi_ngua' || customId === 'tx_multi_sap') {
+          if (interaction.replied || interaction.deferred) return;
 
-          const gameMsgId =
-            interaction.message.id;
-
-          const gameData =
-            store.activeTungXuGames.get(
-              gameMsgId
-            );
+          const gameMsgId = interaction.message.id;
+          const gameData = store.activeTungXuGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Sòng đã kết thúc!',
+                content: '❌ Sòng đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
+          const currentBal = store.economyMap.get(userId) || 0;
+          const choice = customId === 'tx_multi_ngua' ? 'ngửa' : 'sấp';
 
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          const choice =
-            customId ===
-            'tx_multi_ngua'
-              ? 'ngửa'
-              : 'sấp';
-
-          const modal =
-            new ModalBuilder()
-              .setCustomId(
-                `modal_tx_multi_${choice}_${gameMsgId}`
+          const modal = new ModalBuilder()
+            .setCustomId(`modal_tx_multi_${choice}_${gameMsgId}`)
+            .setTitle(`Chọn ${choice.toUpperCase()}`)
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId('tx_bet_input')
+                  .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`)
+                  .setStyle(TextInputStyle.Short)
+                  .setPlaceholder('VD: 500')
+                  .setRequired(true)
               )
-              .setTitle(
-                `Chọn ${choice.toUpperCase()}`
-              )
-              .addComponents(
-                new ActionRowBuilder()
-                  .addComponents(
-                    new TextInputBuilder()
-                      .setCustomId(
-                        'tx_bet_input'
-                      )
-                      .setLabel(
-                        `Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`
-                      )
-                      .setStyle(
-                        TextInputStyle.Short
-                      )
-                      .setPlaceholder(
-                        'VD: 500'
-                      )
-                      .setRequired(true)
-                  )
-              );
+            );
 
-          return await safeRespond(() =>
-            interaction.showModal(
-              modal
-            )
-          );
+          return await safeRespond(() => interaction.showModal(modal));
         }
 
         // =======================================================
-        // DOAN BOM JOIN - FIX: Thêm deferUpdate()
+        // DOAN BOM JOIN
         // =======================================================
         if (customId === 'bom_join') {
-          // ✅ DEFER TRƯỚC KHI UPDATE
           await interaction.deferUpdate();
 
-          const gameId =
-            `bom_${interaction.message.id}`;
-
-          const gameData =
-            store.activeDoanBomGames.get(
-              gameId
-            );
+          const gameId = `bom_${interaction.message.id}`;
+          const gameData = store.activeDoanBomGames.get(gameId);
 
           if (!gameData) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Không tìm thấy ván Đoán Bom này!'
-              })
+              interaction.editReply({ content: '❌ Không tìm thấy ván Đoán Bom này!' })
             );
           }
 
-          if (
-            gameData.phase !==
-            'joining'
-          ) {
+          if (gameData.phase !== 'joining') {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Ván Đoán Bom đã bắt đầu hoặc đã kết thúc!'
-              })
+              interaction.editReply({ content: '❌ Ván Đoán Bom đã bắt đầu hoặc đã kết thúc!' })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
 
-          if (
-            gameData.participants.has(
-              userId
-            )
-          ) {
+          if (gameData.participants.has(userId)) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '⚠️ Bạn đã tham gia ván này rồi!'
-              })
+              interaction.editReply({ content: '⚠️ Bạn đã tham gia ván này rồi!' })
             );
           }
 
-          gameData.participants.set(
-            userId,
-            interaction.user.username
+          gameData.participants.set(userId, interaction.user.username);
+
+          const playerList = Array.from(gameData.participants.values())
+            .map(name => `• ${name}`)
+            .join('\n');
+
+          const updatedEmbed = new EmbedBuilder()
+            .setColor('#FF4444')
+            .setTitle('🎮 GAME ĐOÁN BOM 💣')
+            .setDescription(
+              `Bấm nút bên dưới để tham gia!\n\n` +
+              `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
+              playerList
+            );
+
+          const joinRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('bom_join')
+              .setLabel('🙋 Tham gia')
+              .setStyle(ButtonStyle.Success)
           );
-
-          const playerList =
-            Array.from(
-              gameData.participants.values()
-            )
-              .map(
-                name => `• ${name}`
-              )
-              .join('\n');
-
-          const updatedEmbed =
-            new EmbedBuilder()
-              .setColor('#FF4444')
-              .setTitle(
-                '🎮 GAME ĐOÁN BOM 💣'
-              )
-              .setDescription(
-                `Bấm nút bên dưới để tham gia!\n\n` +
-                `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
-                playerList
-              );
-
-          const joinRow =
-            new ActionRowBuilder()
-              .addComponents(
-                new ButtonBuilder()
-                  .setCustomId(
-                    'bom_join'
-                  )
-                  .setLabel(
-                    '🙋 Tham gia'
-                  )
-                  .setStyle(
-                    ButtonStyle.Success
-                  )
-              );
 
           return await safeRespond(() =>
             interaction.editReply({
-              embeds: [
-                updatedEmbed
-              ],
-              components: [
-                joinRow
-              ]
+              embeds: [updatedEmbed],
+              components: [joinRow]
             })
           );
         }
-
-        /*
-         * KHÔNG xử lý bom_cell_* ở đây.
-         *
-         * games/doanbom.js đã có collector
-         * riêng cho các nút này.
-         */
 
         // =======================================================
         // MA SOI
         // =======================================================
-        if (
-          customId.startsWith(
-            'ms_'
-          )
-        ) {
-          const parts =
-            customId.split('_');
-
-          const gameMsgId =
-            parts[
-              parts.length - 1
-            ];
-
-          const action =
-            parts[1];
-
-          const gameData =
-            store.activeMaSoiGames.get(
-              gameMsgId
-            );
+        if (customId.startsWith('ms_')) {
+          const parts = customId.split('_');
+          const gameMsgId = parts[parts.length - 1];
+          const action = parts[1];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Ván Ma Sói này đã kết thúc!',
+                content: '❌ Ván Ma Sói này đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
 
-          // ---------------- JOIN - FIX: Thêm deferUpdate() ----------------
+          // ---------------- JOIN ----------------
           if (action === 'join') {
-            // ✅ DEFER TRƯỚC KHI UPDATE
             await interaction.deferUpdate();
 
-            if (
-              gameData.phase !==
-              'joining'
-            ) {
+            if (gameData.phase !== 'joining') {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Ván Ma Sói đã bắt đầu!'
-                })
+                interaction.editReply({ content: '❌ Ván Ma Sói đã bắt đầu!' })
               );
             }
 
-            if (
-              gameData.participants.has(
-                userId
-              )
-            ) {
+            if (gameData.participants.has(userId)) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '⚠️ Bạn đã tham gia ván Ma Sói rồi!'
-                })
+                interaction.editReply({ content: '⚠️ Bạn đã tham gia ván Ma Sói rồi!' })
               );
             }
 
-            gameData.participants.set(
-              userId,
-              interaction.user.username
+            gameData.participants.set(userId, interaction.user.username);
+
+            const updatedEmbed = new EmbedBuilder()
+              .setColor('#8B0000')
+              .setTitle('🐺 GAME MA SÓI 🌕')
+              .setDescription(
+                `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
+                Array.from(gameData.participants.values())
+                  .map(n => `• ${n}`)
+                  .join('\n')
+              );
+
+            const joinRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`ms_join_${gameMsgId}`)
+                .setLabel('🙋 Tham gia')
+                .setStyle(ButtonStyle.Success)
             );
-
-            const updatedEmbed =
-              new EmbedBuilder()
-                .setColor('#8B0000')
-                .setTitle(
-                  '🐺 GAME MA SÓI 🌕'
-                )
-                .setDescription(
-                  `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
-                  Array.from(
-                    gameData.participants.values()
-                  )
-                    .map(
-                      n => `• ${n}`
-                    )
-                    .join('\n')
-                );
-
-            const joinRow =
-              new ActionRowBuilder()
-                .addComponents(
-                  new ButtonBuilder()
-                    .setCustomId(
-                      `ms_join_${gameMsgId}`
-                    )
-                    .setLabel(
-                      '🙋 Tham gia'
-                    )
-                    .setStyle(
-                      ButtonStyle.Success
-                    )
-                );
 
             return await safeRespond(() =>
               interaction.editReply({
-                embeds: [
-                  updatedEmbed
-                ],
-                components: [
-                  joinRow
-                ]
+                embeds: [updatedEmbed],
+                components: [joinRow]
               })
             );
           }
 
-          const myRole =
-            gameData.roles.get(
-              userId
-            );
+          const myRole = gameData.roles?.get(userId);
 
           // ---------------- WOLF ----------------
           if (action === 'wolf') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'soi' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'soi' || !gameData.alive?.has(userId)) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
-                })
+                interaction.editReply({ content: '❌ Đây không phải lượt của bạn!' })
               );
             }
 
-            const targetId =
-              parts[2];
-
-            gameData.wolfVotes.set(
-              userId,
-              targetId
-            );
+            const targetId = parts[2];
+            gameData.wolfVotes.set(userId, targetId);
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- GUARD ----------------
           if (action === 'guard') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'baove' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'baove' || !gameData.alive?.has(userId)) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
-                })
+                interaction.editReply({ content: '❌ Đây không phải lượt của bạn!' })
               );
             }
 
-            const targetId =
-              parts[2];
-
-            gameData.guardTarget =
-              targetId;
+            const targetId = parts[2];
+            gameData.guardTarget = targetId;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- DOCTOR ----------------
           if (action === 'doctor') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'bacsi' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'bacsi' || !gameData.alive?.has(userId)) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
-                })
+                interaction.editReply({ content: '❌ Đây không phải lượt của bạn!' })
               );
             }
 
-            const targetId =
-              parts[2];
-
-            gameData.doctorTarget =
-              targetId;
+            const targetId = parts[2];
+            gameData.doctorTarget = targetId;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- SEER ----------------
           if (action === 'seer') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'tientri' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'tientri' || !gameData.alive?.has(userId)) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
-                })
+                interaction.editReply({ content: '❌ Đây không phải lượt của bạn!' })
               );
             }
 
             if (gameData.seerActed) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Bạn đã soi rồi đêm nay!'
-                })
+                interaction.editReply({ content: '❌ Bạn đã soi rồi đêm nay!' })
               );
             }
 
-            const targetId =
-              parts[2];
-
-            gameData.seerActed =
-              true;
-
-            const isWolf =
-              gameData.roles.get(
-                targetId
-              ) === 'soi';
+            const targetId = parts[2];
+            gameData.seerActed = true;
+            const isWolf = gameData.roles.get(targetId) === 'soi';
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `🔮 **${gameData.participants.get(targetId)}** ` +
-                  `${
-                    isWolf
-                      ? 'LÀ SÓI 🐺!'
-                      : 'không phải Sói ✅'
-                  }`
+                content: `🔮 **${gameData.participants.get(targetId)}** ${isWolf ? 'LÀ SÓI 🐺!' : 'không phải Sói ✅'}`
               })
             );
           }
 
           // ---------------- WITCH HEAL ----------------
-          if (
-            action ===
-            'witchheal'
-          ) {
+          if (action === 'witchheal') {
             await interaction.deferUpdate();
 
             if (
@@ -1065,27 +785,20 @@ module.exports = {
             ) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Không thể dùng lúc này!',
+                  content: '❌ Không thể dùng thuốc giải lúc này!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            gameData.witchHealUsed =
-              true;
-
-            gameData.witchSavedVictim =
-              true;
-
-            gameData.witchActedTonight =
-              true;
+            gameData.witchHealUsed = true;
+            gameData.witchSavedVictim = true;
+            gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `💚 Đã cứu **${gameData.participants.get(gameData.wolfVictim)}**!`,
+                content: `💚 Đã cứu **${gameData.participants.get(gameData.wolfVictim)}**!`,
                 embeds: [],
                 components: []
               })
@@ -1093,10 +806,7 @@ module.exports = {
           }
 
           // ---------------- WITCH POISON MENU ----------------
-          if (
-            action ===
-            'witchpoisonmenu'
-          ) {
+          if (action === 'witchpoisonmenu') {
             await interaction.deferUpdate();
 
             if (
@@ -1106,42 +816,27 @@ module.exports = {
             ) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Không thể dùng lúc này!',
+                  content: '❌ Không thể dùng thuốc độc lúc này!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            const targets =
-              [...gameData.alive]
-                .filter(
-                  uid =>
-                    uid !== userId
-                );
+            const aliveTargets = Array.from(gameData.alive.keys()).filter(id => id !== userId);
+            const poisonRows = buildPlayerButtons('ms_witchpoison', gameMsgId, gameData, aliveTargets);
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '☠️ Chọn mục tiêu để đầu độc:',
+                content: '🧪 Chọn người chơi bạn muốn hạ độc:',
                 embeds: [],
-                components:
-                  buildPlayerButtons(
-                    'ms_witchpoison',
-                    gameMsgId,
-                    gameData,
-                    targets
-                  )
+                components: poisonRows
               })
             );
           }
 
           // ---------------- WITCH POISON ----------------
-          if (
-            action ===
-            'witchpoison'
-          ) {
+          if (action === 'witchpoison') {
             await interaction.deferUpdate();
 
             if (
@@ -1151,66 +846,36 @@ module.exports = {
             ) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Không thể dùng lúc này!',
+                  content: '❌ Bạn không thể hạ độc lúc này!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            const targetId =
-              parts[2];
-
-            if (
-              !targetId ||
-              !gameData.alive.has(
-                targetId
-              )
-            ) {
-              return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Người chơi này không còn sống!',
-                  embeds: [],
-                  components: []
-                })
-              );
-            }
-
-            gameData.witchPoisonUsed =
-              true;
-
-            gameData.witchPoisonTarget =
-              targetId;
-
-            gameData.witchActedTonight =
-              true;
+            const targetId = parts[2];
+            gameData.witchPoisonUsed = true;
+            gameData.witchPoisonTarget = targetId;
+            gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `☠️ Đã đầu độc **${gameData.participants.get(targetId)}**!`,
+                content: `☠️ Bạn đã dùng bình độc lên **${gameData.participants.get(targetId)}**!`,
                 embeds: [],
                 components: []
               })
             );
           }
 
-          // ---------------- WITCH SKIP ----------------
-          if (
-            action ===
-            'witchskip'
-          ) {
+          // ---------------- WITCH PASS ----------------
+          if (action === 'witchpass') {
             await interaction.deferUpdate();
 
-            gameData.witchActedTonight =
-              true;
+            gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '➡️ Bạn đã bỏ qua lượt này.',
+                content: '💤 Bạn đã quyết định không dùng phép thuật đêm nay.',
                 embeds: [],
                 components: []
               })
@@ -1219,375 +884,133 @@ module.exports = {
 
           // ---------------- VOTE ----------------
           if (action === 'vote') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (!gameData.alive?.has(userId)) {
               return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Bạn đã bị loại, không thể vote!'
-                })
+                interaction.editReply({ content: '❌ Người chết không được tham gia treo cổ!' })
               );
             }
 
-            const targetId =
-              parts[2];
-
-            if (
-              !targetId ||
-              !gameData.alive.has(
-                targetId
-              )
-            ) {
-              return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Người chơi này không còn sống!'
-                })
-              );
-            }
-
-            gameData.votes.set(
-              userId,
-              targetId
-            );
+            const targetId = parts[2];
+            gameData.dayVotes.set(userId, targetId);
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã vote treo cổ **${gameData.participants.get(targetId)}**!`
+                content: `🗳️ Bạn đã bỏ phiếu treo cổ **${gameData.participants.get(targetId)}**!`
               })
             );
           }
-
-          // ---------------- HUNTER ----------------
-          if (
-            action ===
-            'hunter'
-          ) {
-            await interaction.deferReply({
-              ephemeral: true
-            });
-
-            if (
-              gameData.pendingHunterId !==
-              userId
-            ) {
-              return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
-                })
-              );
-            }
-
-            const targetId =
-              parts[2];
-
-            if (
-              !targetId ||
-              !gameData.alive.has(
-                targetId
-              )
-            ) {
-              return await safeRespond(() =>
-                interaction.editReply({
-                  content:
-                    '❌ Người chơi này không còn sống!'
-                })
-              );
-            }
-
-            gameData.hunterRevengeTarget =
-              targetId;
-
-            gameData.pendingHunterId =
-              null;
-
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  `🏹 Bạn đã bắn hạ **${gameData.participants.get(targetId)}** trước khi ngã xuống!`
-              })
-            );
-          }
-
-          return;
         }
 
         return;
       }
 
       // =========================================================
-      // MODALS
+      // MODAL SUBMITS
       // =========================================================
       if (interaction.isModalSubmit()) {
-        const customId =
-          interaction.customId;
+        const customId = interaction.customId;
 
-        // ---------------- BAU CUA ----------------
-        if (
-          customId.startsWith(
-            'modal_bc_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        // ---------------- MODAL BẦU CUA ----------------
+        if (customId.startsWith('modal_bc_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const parts =
-            customId.split('_');
+          const parts = customId.split('_');
+          const choice = parts[2];
+          const gameMsgId = parts[3];
 
-          const choice =
-            parts[2];
-
-          const gameMsgId =
-            parts[3];
-
-          const gameData =
-            store.activeBauCuaGames.get(
-              gameMsgId
-            );
-
+          const gameData = store.activeBauCuaGames.get(gameMsgId);
           if (!gameData) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Sòng đã kết thúc!'
-              })
+              interaction.editReply({ content: '❌ Sòng Bầu Cua đã kết thúc!' })
             );
           }
 
-          const betAmount =
-            parseInt(
-              interaction.fields.getTextInputValue(
-                'bc_bet_input'
-              )
-            );
+          const amountInput = interaction.fields.getTextInputValue('bc_bet_input');
+          const amount = parseInt(amountInput);
 
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
+          if (isNaN(amount) || amount <= 0) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
-              })
+              interaction.editReply({ content: '❌ Số tiền cược không hợp lệ!' })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
+          const userBal = store.economyMap.get(userId) || 0;
 
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          if (
-            currentBal <
-            betAmount
-          ) {
+          if (userBal < amount) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Bạn không đủ số dư!'
-              })
+              interaction.editReply({ content: '❌ Số dư Mcoin của bạn không đủ!' })
             );
           }
 
-          store.economyMap.set(
-            userId,
-            currentBal -
-              betAmount
-          );
+          // Trừ tiền và lưu cược
+          store.economyMap.set(userId, userBal - amount);
 
-          if (
-            !gameData.players.has(
-              userId
-            )
-          ) {
-            gameData.players.set(
-              userId,
-              {
-                username:
-                  interaction.user.username,
-                bets: []
-              }
-            );
+          if (!gameData.bets.has(userId)) {
+            gameData.bets.set(userId, []);
           }
-
-          gameData.players
-            .get(userId)
-            .bets.push({
-              choice,
-              bet: betAmount
-            });
-
-          store.addLeaderboardScore(
-            userId,
-            betAmount
-          );
-
-          const totalBetSoFar =
-            gameData.players
-              .get(userId)
-              .bets.reduce(
-                (sum, b) =>
-                  sum + b.bet,
-                0
-              );
+          gameData.bets.get(userId).push({ choice, amount });
 
           return await safeRespond(() =>
             interaction.editReply({
-              content:
-                `✅ Đã đặt cược thêm **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!\n` +
-                `(Tổng đã cược trong ván này: **${totalBetSoFar.toLocaleString()} Mcoin**)`
+              content: `✅ Đặt cược thành công **${amount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
             })
           );
         }
 
-        // ---------------- TUNG XU ----------------
-        if (
-          customId.startsWith(
-            'modal_tx_multi_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        // ---------------- MODAL TÙNG XỦ MULTI ----------------
+        if (customId.startsWith('modal_tx_multi_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const parts =
-            customId.split('_');
+          const parts = customId.split('_');
+          const choice = parts[3]; // 'ngửa' hoặc 'sấp'
+          const gameMsgId = parts[4];
 
-          const choice =
-            parts[3];
-
-          const gameMsgId =
-            parts[4];
-
-          const gameData =
-            store.activeTungXuGames.get(
-              gameMsgId
-            );
-
+          const gameData = store.activeTungXuGames.get(gameMsgId);
           if (!gameData) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Sòng đã kết thúc!'
-              })
+              interaction.editReply({ content: '❌ Sòng Tùng Xử đã kết thúc!' })
             );
           }
 
-          const betAmount =
-            parseInt(
-              interaction.fields.getTextInputValue(
-                'tx_bet_input'
-              )
-            );
+          const amountInput = interaction.fields.getTextInputValue('tx_bet_input');
+          const amount = parseInt(amountInput);
 
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
+          if (isNaN(amount) || amount <= 0) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
-              })
+              interaction.editReply({ content: '❌ Số tiền cược không hợp lệ!' })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
+          const userBal = store.economyMap.get(userId) || 0;
 
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          const oldBet =
-            gameData.players.has(
-              userId
-            )
-              ? gameData.players.get(
-                  userId
-                ).bet
-              : 0;
-
-          const netNeeded =
-            betAmount -
-            oldBet;
-
-          if (
-            currentBal <
-            netNeeded
-          ) {
+          if (userBal < amount) {
             return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Không đủ số dư!'
-              })
+              interaction.editReply({ content: '❌ Số dư Mcoin của bạn không đủ!' })
             );
           }
 
-          store.economyMap.set(
-            userId,
-            currentBal -
-              netNeeded
-          );
+          // Trừ tiền và lưu cược
+          store.economyMap.set(userId, userBal - amount);
 
-          gameData.players.set(
-            userId,
-            {
-              username:
-                interaction.user.username,
-              choice,
-              bet: betAmount
-            }
-          );
-
-          if (netNeeded > 0) {
-            store.addLeaderboardScore(
-              userId,
-              netNeeded
-            );
+          if (!gameData.bets.has(userId)) {
+            gameData.bets.set(userId, []);
           }
+          gameData.bets.get(userId).push({ choice, amount });
 
           return await safeRespond(() =>
             interaction.editReply({
-              content:
-                `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
+              content: `✅ Đặt cược thành công **${amount.toLocaleString()} Mcoin** vào cửa **${choice.toUpperCase()}**!`
             })
           );
         }
-
-        return;
       }
 
-    } catch (err) {
-      if (
-        err?.code === 10062 ||
-        err?.code === 40060
-      ) {
-        console.warn(
-          `⚠️ Bỏ qua lỗi interaction ${err.code}`
-        );
-        return;
-      }
-
-      console.error(
-        '❌ Lỗi xử lý interactionCreate:',
-        err
-      );
+    } catch (error) {
+      console.error('💥 Lỗi không xác định tại interactionCreate:', error);
     }
   }
 };
