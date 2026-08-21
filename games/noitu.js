@@ -1,4 +1,4 @@
-// games/noitu.js - Game Nối Tiếng (Word Chaining)
+// games/noitu.js - Game Nối Tiếng (Word Chaining) - Đúng 2 tiếng
 const { EmbedBuilder } = require('discord.js');
 
 const WORD_LIST = [
@@ -61,7 +61,7 @@ async function startNoituGame(client, message, store) {
     currentPhrase: firstPhrase,
     usedPhrases: new Set([normalizedFirst]),
     players: new Map(),
-    lastPlayerId: null, // Lưu ID người vừa trả lời đúng gần nhất
+    lastPlayerId: null,
     isActive: true,
     startTime: Date.now()
   };
@@ -72,13 +72,12 @@ async function startNoituGame(client, message, store) {
   const startEmbed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('🎮 GAME NỐI TIẾNG - BẮT ĐẦU')
-    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nLuật chơi:\n• Mỗi lượt có **15 giây** để trả lời\n• **Không thể trả lời 2 lần liên tiếp** (phải chờ người khác)\n• **Không dùng từ điệp** (VD: kín kín, định định)\n• Sai từ chỉ bị nhắc nhở, game chỉ dừng khi **hết 15 giây** không ai nối tiếp!`)
-    .setFooter({ text: `Hãy gõ cụm từ bắt đầu bằng: ${startSyllable}` })
+    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nLuật chơi:\n• Mỗi từ nối **bắt buộc phải đúng 2 tiếng (2 từ)**\n• Mỗi lượt có **15 giây** để trả lời\n• **Không thể trả lời 2 lần liên tiếp** (phải chờ người khác)\n• **Không dùng từ điệp** (VD: kín kín, định định)\n• Sai từ chỉ bị nhắc nhở, game chỉ dừng khi **hết 15 giây** không ai nối tiếp!`)
+    .setFooter({ text: `Hãy gõ cụm từ (2 tiếng) bắt đầu bằng: ${startSyllable}` })
     .setTimestamp();
 
   await message.reply({ embeds: [startEmbed] });
 
-  // Set timeout chờ người nối từ đầu tiên
   gameData.timeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
       gameData.isActive = false;
@@ -103,36 +102,44 @@ async function handleNoituMessage(client, message, store, content) {
 
   if (normalizedInput.length < 2) return false;
 
-  // 1. KIỂM TRA LƯỢT CHƠI (Không cho 1 người nối 2 lần liên tiếp)
+  const words = normalizedInput.split(/\s+/);
+
+  // 1. GIỚI HẠN ĐÚNG 2 TIẾNG (CẤM NỐI NGUYÊN CÂU HOẶC 1 TỪ SINGLE)
+  if (words.length !== 2) {
+    try { await message.react('❌'); } catch (e) {}
+    await message.reply(`❌ Từ nối bắt buộc phải bao gồm **đúng 2 tiếng**!`);
+    return true; // Giữ game chạy, không ngắt
+  }
+
+  // 2. KIỂM TRA LƯỢT CHƠI (Không cho 1 người nối 2 lần liên tiếp)
   if (gameData.lastPlayerId === userId) {
     try { await message.react('⚠️'); } catch (e) {}
     await message.reply(`⚠️ **${username}**, bạn vừa nối rồi! Hãy chờ người khác trả lời tiếp.`);
-    return true; // Không dừng game
+    return true;
   }
 
-  // 2. KIỂM TRA TỪ ĐIỆP (2 tiếng lặp lại)
-  const words = normalizedInput.split(/\s+/);
-  if (words.length >= 2 && words[0] === words[1]) {
+  // 3. KIỂM TRA TỪ ĐIỆP (2 tiếng lặp lại)
+  if (words[0] === words[1]) {
     try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Không được dùng từ lặp tiếng như \`${normalizedInput}\`! Thử từ khác nhé.`);
-    return true; // Cảnh báo, giữ game chạy
+    return true;
   }
 
-  // 3. KIỂM TRA TIẾNG ĐẦU KHỚP VỚI TIẾNG CUỐI
+  // 4. KIỂM TRA TIẾNG ĐẦU KHỚP VỚI TIẾNG CUỐI
   const expectedSyllable = getLastSyllable(gameData.currentPhrase);
   const playerSyllable = getFirstSyllable(normalizedInput);
 
   if (playerSyllable !== expectedSyllable) {
     try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Sai rồi! Cụm từ phải bắt đầu bằng tiếng: \`${expectedSyllable}\``);
-    return true; // Cảnh báo, giữ game chạy
+    return true;
   }
 
-  // 4. KIỂM TRA TỪ ĐÃ ĐƯỢC DÙNG CHƯA
+  // 5. KIỂM TRA TỪ ĐÃ ĐƯỢC DÙNG CHƯA
   if (gameData.usedPhrases.has(normalizedInput)) {
     try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Cụm từ \`${normalizedInput}\` đã được sử dụng rồi!`);
-    return true; // Cảnh báo, giữ game chạy
+    return true;
   }
 
   // ================= CỤM TỪ HỢP LỆ =================
@@ -140,7 +147,7 @@ async function handleNoituMessage(client, message, store, content) {
 
   gameData.currentPhrase = normalizedInput;
   gameData.usedPhrases.add(normalizedInput);
-  gameData.lastPlayerId = userId; // Ghi nhận người vừa trả lời đúng
+  gameData.lastPlayerId = userId;
 
   if (!gameData.players.has(userId)) {
     gameData.players.set(userId, { name: username, points: 0 });
