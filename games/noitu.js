@@ -1,6 +1,5 @@
-// games/noitu.js - Game Nối Từ Tiếng Việt Chuẩn (Có kiểm tra nghĩa / từ điển)
+// games/noitu.js - Game Nối Từ Tiếng Việt Chuẩn (Sử dụng fetch gốc)
 const { EmbedBuilder } = require('discord.js');
-const axios = require('axios'); // Đảm bảo bạn đã cài: npm install axios
 
 const WORD_LIST = [
   'mùa xuân', 'xuân thì', 'thì thầm', 'thầm lặng', 'lặng yên', 'yên tĩnh', 'tĩnh mơ', 'mơ mộng',
@@ -48,33 +47,32 @@ function getFirstSyllable(phrase) {
   return words[0];
 }
 
-// ================= HÀM KIỂM TRA TỪ CÓ NGHĨA BẰNG API TỪ ĐIỂN =================
+// Kiểm tra từ điển dùng fetch native
 async function isValidVietnameseWord(phrase) {
   const words = phrase.split(/\s+/);
   
-  // 1. Kiểm tra ký tự không phải Tiếng Việt (chứa j, w, z, f hoặc ký tự lạ)
+  // Lọc ký tự dị (j, w, z, f)
   const invalidChars = /[jwzf]/i;
   for (const word of words) {
     if (invalidChars.test(word)) return false;
   }
 
-  // 2. Tra cứu từ điển qua Wiki/Dictionary API miễn phí
   try {
     const url = `https://vi.wiktionary.org/w/api.php?action=query&titles=${encodeURIComponent(phrase)}&format=json`;
-    const response = await axios.get(url, { timeout: 3000 });
-    const pages = response.data?.query?.pages;
+    const response = await fetch(url);
+    const data = await response.json();
+    const pages = data?.query?.pages;
     
     if (pages) {
       const pageId = Object.keys(pages)[0];
       if (pageId !== '-1') {
-        return true; // Từ có trong Từ điển Wiktionary
+        return true;
       }
     }
   } catch (err) {
-    // Nếu API lỗi/quá tải, cho phép bỏ qua bước tra từ điển để game không bị ngắt
+    // Nếu API timeout thì cho qua bước check từ điển
   }
 
-  // 3. Fallback: Nếu không tra được Wiktionary, kiểm tra từng tiếng có thuộc cấu trúc âm tiết Việt Nam không
   const vietnameseSyllableRegex = /^[a-áàảãạăắằẳẵặâấầẩẫậeéèẻẽẹêếềểễệiíìỉĩịoóòỏõọôốồổỗộơớờởỡợuúùủũụưứừửữựyýỳỷỹỵdđbchghkhngnhpqrtvxs]*$/i;
   return words.every(w => vietnameseSyllableRegex.test(w));
 }
@@ -136,14 +134,12 @@ async function handleNoituMessage(client, message, store, content) {
 
   const words = normalizedInput.split(/\s+/);
 
-  // 1. GIỚI HẠN ĐÚNG 2 TIẾNG
   if (words.length !== 2) {
     try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Từ nối bắt buộc phải bao gồm **đúng 2 tiếng**!`);
     return true;
   }
 
-  // 2. KIỂM TRA TỪ CÓ NGHĨA / HỢP LỆ TRONG TIẾNG VIỆT
   const validMeaning = await isValidVietnameseWord(normalizedInput);
   if (!validMeaning) {
     try { await message.react('❌'); } catch (e) {}
@@ -151,21 +147,18 @@ async function handleNoituMessage(client, message, store, content) {
     return true;
   }
 
-  // 3. KIỂM TRA LƯỢT CHƠI (Không nối 2 lần liên tiếp)
   if (gameData.lastPlayerId === userId) {
     try { await message.react('⚠️'); } catch (e) {}
     await message.reply(`⚠️ **${username}**, bạn vừa nối rồi! Hãy chờ người khác trả lời tiếp.`);
     return true;
   }
 
-  // 4. KIỂM TRA TỪ ĐIỆP (2 tiếng lặp lại)
   if (words[0] === words[1]) {
     try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Không được dùng từ lặp tiếng như \`${normalizedInput}\`!`);
     return true;
   }
 
-  // 5. KIỂM TRA TIẾNG ĐẦU KHỚP TIẾNG CUỐI
   const expectedSyllable = getLastSyllable(gameData.currentPhrase);
   const playerSyllable = getFirstSyllable(normalizedInput);
 
@@ -175,14 +168,12 @@ async function handleNoituMessage(client, message, store, content) {
     return true;
   }
 
-  // 6. KIỂM TRA TỪ ĐÃ DÙNG CHƯA
   if (gameData.usedPhrases.has(normalizedInput)) {
     try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Cụm từ \`${normalizedInput}\` đã được sử dụng rồi!`);
     return true;
   }
 
-  // ================= CỤM TỪ HỢP LỆ =================
   try { await message.react('✅'); } catch (e) {}
 
   gameData.currentPhrase = normalizedInput;
@@ -211,7 +202,6 @@ async function handleNoituMessage(client, message, store, content) {
 
   await message.reply({ embeds: [responseEmbed] });
 
-  // Reset 15s đếm ngược
   clearTimeout(gameData.timeout);
   gameData.timeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
