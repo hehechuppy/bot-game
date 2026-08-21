@@ -45,7 +45,7 @@ module.exports = {
       return message.reply({ embeds: [helpEmbed] });
     }
 
-    // ================= XH: BẢNG XẾP HẠNG MCOIN (CHUẨN FORM ẢNH MẪU) =================
+    // ================= XH: BẢNG XẾP HẠNG MCOIN =================
     if (command === 'xh') {
       if (store.economyMap.size === 0) return message.reply('📊 Bảng xếp hạng Mcoin hiện tại đang trống!');
 
@@ -68,7 +68,6 @@ module.exports = {
         }
 
         const name = user ? (user.displayName || user.username) : `User_${uid.slice(-4)}`;
-        // Định dạng số phân cách bằng dấu chấm (VD: 12.854.045)
         const formattedMoney = balance.toLocaleString('vi-VN');
 
         if (rank <= 3) {
@@ -165,7 +164,6 @@ module.exports = {
       return message.reply(`🎁 Nhận mã code thành công!\n💰 +${codeData.reward.toLocaleString()} Mcoin`);
     }
 
-    // --- .donate: thu phí 10% ---
     if (['donate', 'chuyenxu'].includes(command)) {
       const targetUser = message.mentions.users.first() || client.users.cache.get(args[0]);
       const amount = parseInt(args[1]);
@@ -198,19 +196,47 @@ module.exports = {
       return message.reply({ embeds: [donateEmbed] });
     }
 
-    // ================= SHOP / VẬT PHẨM =================
+    // ================= CỬA HÀNG VẬT PHẨM (THIẾT KẾ MỚI) =================
     if (command === 'shop') {
-      const desc = store.SHOP_ITEMS.map(item => {
-        const dailyText = item.dailyLimit ? `\n⏳ Giới hạn: ${item.dailyLimit}/ngày` : '';
-        return `**#${item.id} — ${item.name}**\n${item.description}${dailyText}\n💰 **${item.price.toLocaleString()}** Mcoin\n`;
-      }).join('\n');
+      const userBalance = store.economyMap.get(userId) || 0;
+
+      // Type icons giúp phân loại trực quan
+      const TYPE_ICONS = {
+        voicetime: '🎙️',
+        winmultiplier: '⚡',
+        insurance: '🛡️',
+        box: '🎁'
+      };
+
+      const desc = store.SHOP_ITEMS.map((item) => {
+        const icon = TYPE_ICONS[item.type] || '📦';
+        const boughtToday = dData.itemBuys[item.id] || 0;
+
+        let limitText = '';
+        if (item.dailyLimit !== null) {
+          const remaining = Math.max(0, item.dailyLimit - boughtToday);
+          limitText = `\n⏳ **Giới hạn:** \`${boughtToday}/${item.dailyLimit}\`/ngày (Còn \`${remaining}\` lần)`;
+        }
+
+        return [
+          `${icon} **[ #${item.id} ]  ${item.name.toUpperCase()}**`,
+          `> ${item.description}`,
+          `💰 **Giá:** \`${item.price.toLocaleString()}\` Mcoin${limitText}`,
+          `───────────────────`
+        ].join('\n');
+      }).join('\n\n');
 
       const shopEmbed = new EmbedBuilder()
         .setColor('#FFD700')
-        .setTitle('🛒 CỬA HÀNG VẬT PHẨM')
-        .setDescription(desc)
-        .setFooter({ text: 'Dùng .mua <id> để mua | .sd <id> để dùng | .box/.unbox cho Lucky Box' })
+        .setTitle('🛒  CỬA HÀNG VẬT PHẨM')
+        .setDescription(`👤 **Tài khoản:** ${message.author}\n💰 **Số dư:** \`${userBalance.toLocaleString()}\` Mcoin\n\n${desc}`)
+        .setThumbnail(client.user.displayAvatarURL())
+        .setFooter({ 
+          text: '💡 Dùng .mua <ID> để mua | .sd <ID> để dùng | .box / .unbox cho Lucky Box',
+          iconURL: message.author.displayAvatarURL()
+        })
         .setTimestamp();
+
       return message.reply({ embeds: [shopEmbed] });
     }
 
@@ -219,7 +245,7 @@ module.exports = {
       const item = store.SHOP_ITEMS.find(i => i.id === itemId);
       if (!item) return message.reply('❌ Không tìm thấy vật phẩm với ID này! Dùng `.shop` để xem danh sách.');
 
-      if (item.type === 'box' && item.dailyLimit) {
+      if (item.dailyLimit) {
         if (!store.canBuyItemToday(userId, itemId)) {
           return message.reply(`❌ Bạn đã mua hết lượt **${item.name}** hôm nay!\n⏳ Giới hạn: ${item.dailyLimit} cái/ngày`);
         }
@@ -352,7 +378,7 @@ module.exports = {
       const result = store.openBoxes(userId, 6, requested);
       if (!result.success) return message.reply('❌ Có lỗi khi mở hộp!');
 
-      const listStr = result.rewards.slice(0, 10).map((r, i) => {
+      const listStr = result.rewards.slice(0, 10).map((r) => {
         const sign = r >= 0 ? '✅ +' : '❌ ';
         return `${sign}${r.toLocaleString()} Mcoin`;
       }).join('\n');
