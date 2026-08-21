@@ -72,7 +72,7 @@ async function startNoituGame(client, message, store) {
   const startEmbed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('🎮 GAME NỐI TIẾNG - BẮT ĐẦU')
-    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nNguười chơi hãy nối cụm từ tiếp theo (tiếng đầu = tiếng cuối của cụm từ trước)\n\n⏱️ Luật chơi:\n• Mỗi người có **5-10 giây** để suy nghĩ\n• Không được dùng lại từ đã nói\n• Từ phải là từ có nghĩa trong Tiếng Việt\n• Nối sai hoặc hết thời gian → Thua`)
+    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nNguười chơi hãy nối cụm từ tiếp theo (tiếng đầu = tiếng cuối của cụm từ trước)\n\n⏱️ Luật chơi:\n• Mỗi người có **10-15 giây** để suy nghĩ\n• Không được dùng lại từ đã nói\n• Từ phải là từ có nghĩa trong Tiếng Việt\n• Nối sai hoặc hết thời gian → Thua`)
     .setFooter({ text: `Hãy gõ cụm từ bắt đầu bằng: ${startSyllable}` })
     .setTimestamp();
 
@@ -168,14 +168,14 @@ async function handleNoituMessage(client, message, store, content) {
 
   await message.reply({ embeds: [responseEmbed] });
 
-  // Reset timeout - 10 giây chờ người tiếp theo
+  // Reset timeout - 15 giây chờ người tiếp theo
   clearTimeout(gameData.timeout);
   gameData.timeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
       gameData.isActive = false;
       endNoituGame(client, message, store, channelId, gameData, 'timeout');
     }
-  }, 10 * 1000); // 10 giây
+  }, 15 * 1000); // 15 giây
 
   return true;
 }
