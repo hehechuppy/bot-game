@@ -22,43 +22,49 @@ const WORD_LIST = [
 
 const activeGames = new Map(); // channelId -> gameData
 
+// Hàm chuẩn hóa chuỗi: Loại bỏ ký tự đặc biệt, dấu câu và khoảng trắng thừa
+function normalizeWord(str) {
+  return str
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, '') // Xóa hết ký tự đặc biệt như ', ", ., !, ?, ...
+    .replace(/\s+/g, ' ')            // Chuẩn hóa khoảng trắng
+    .trim();
+}
+
 function getRandomPhrase() {
   return WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
 }
 
 // Lấy tiếng cuối cùng của cụm từ
 function getLastSyllable(phrase) {
-  const words = phrase.trim().split(/\s+/);
+  const cleanPhrase = normalizeWord(phrase);
+  const words = cleanPhrase.split(/\s+/);
   if (words.length === 0) return '';
-  const lastWord = words[words.length - 1];
-  // Tách tiếng từ từ cuối cùng
-  const syllables = lastWord.split(/[-,]/);
-  return syllables[syllables.length - 1].toLowerCase();
+  return words[words.length - 1];
 }
 
 // Lấy tiếng đầu tiên của cụm từ
 function getFirstSyllable(phrase) {
-  const words = phrase.trim().split(/\s+/);
+  const cleanPhrase = normalizeWord(phrase);
+  const words = cleanPhrase.split(/\s+/);
   if (words.length === 0) return '';
-  const firstWord = words[0];
-  // Tách tiếng từ từ đầu tiên
-  const syllables = firstWord.split(/[-,]/);
-  return syllables[0].toLowerCase();
+  return words[0];
 }
 
 async function startNoituGame(client, message, store) {
   const channelId = message.channelId;
 
-  // Kiểm tra xem đã có game đang chạy không
   if (activeGames.has(channelId)) {
     return message.reply('⚠️ Đã có game nối tiếng đang chạy trong kênh này! Chờ đến khi kết thúc.');
   }
 
   const firstPhrase = getRandomPhrase();
+  const normalizedFirst = normalizeWord(firstPhrase);
+
   const gameData = {
     currentPhrase: firstPhrase,
-    usedPhrases: new Set([firstPhrase.toLowerCase()]),
-    players: new Map(), // userId -> { name, points }
+    usedPhrases: new Set([normalizedFirst]), // Lưu dạng chuẩn hóa để check trùng chính xác
+    players: new Map(),
     isActive: true,
     startTime: Date.now(),
     lastWordTime: Date.now(),
@@ -78,7 +84,6 @@ async function startNoituGame(client, message, store) {
 
   await message.reply({ embeds: [startEmbed] });
 
-  // Tự động kết thúc game sau 10 phút nếu không ai chơi
   const gameTimeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
       gameData.isActive = false;
@@ -99,17 +104,17 @@ async function handleNoituMessage(client, message, store, content) {
 
   const userId = message.author.id;
   const username = message.author.username;
-  const phrase = content.trim();
+  const rawPhrase = content.trim();
+  const normalizedInput = normalizeWord(rawPhrase);
 
-  // Bỏ qua tin nhắn quá ngắn
-  if (phrase.length < 2) return false;
+  // Bỏ qua nếu từ quá ngắn hoặc rỗng sau khi làm sạch
+  if (normalizedInput.length < 2) return false;
 
   // Kiểm tra tiếng đầu có khớp không
   const expectedSyllable = getLastSyllable(gameData.currentPhrase);
-  const playerSyllable = getFirstSyllable(phrase);
+  const playerSyllable = getFirstSyllable(normalizedInput);
 
   if (playerSyllable !== expectedSyllable) {
-    // Thêm reaction ❌
     try {
       await message.react('❌');
     } catch (e) { /* Bỏ qua */ }
@@ -121,48 +126,45 @@ async function handleNoituMessage(client, message, store, content) {
     return true;
   }
 
-  // Kiểm tra từ đã dùng chưa
-  if (gameData.usedPhrases.has(phrase.toLowerCase())) {
-    // Thêm reaction ❌
+  // Kiểm tra từ đã dùng chưa (So sánh dựa trên chuỗi đã chuẩn hóa)
+  if (gameData.usedPhrases.has(normalizedInput)) {
     try {
       await message.react('❌');
     } catch (e) { /* Bỏ qua */ }
 
-    await message.reply(`❌ Cụm từ \`${phrase}\` đã được dùng rồi!`);
+    await message.reply(`❌ Cụm từ \`${normalizedInput}\` đã được dùng rồi!`);
     gameData.isActive = false;
     clearTimeout(gameData.timeout);
     endNoituGame(client, message, store, channelId, gameData, 'duplicate');
     return true;
   }
 
-  // Cụm từ hợp lệ - thêm reaction ✅
+  // Cụm từ hợp lệ
   try {
     await message.react('✅');
   } catch (e) { /* Bỏ qua */ }
 
-  gameData.currentPhrase = phrase;
-  gameData.usedPhrases.add(phrase.toLowerCase());
+  gameData.currentPhrase = normalizedInput;
+  gameData.usedPhrases.add(normalizedInput);
   gameData.lastWordTime = Date.now();
 
-  // Cộng điểm cho người chơi
   if (!gameData.players.has(userId)) {
     gameData.players.set(userId, { name: username, points: 0 });
   }
-  const randomReward = Math.floor(Math.random() * 2501) + 500; // 500-3000
+  const randomReward = Math.floor(Math.random() * 2501) + 500;
   gameData.players.get(userId).points += randomReward;
   store.addTungXu(userId, randomReward);
 
-  // Cộng vào lượng tin game
   const dData = store.getDailyData(userId);
   if (!dData.claimedGame) {
     dData.games += 1;
   }
 
-  const nextSyllable = getLastSyllable(phrase);
+  const nextSyllable = getLastSyllable(normalizedInput);
   const responseEmbed = new EmbedBuilder()
     .setColor('#4CAF50')
     .setTitle('✅ Cụm Từ Hợp Lệ')
-    .setDescription(`**${username}** nối: \`${phrase}\`\n💰 +${randomReward.toLocaleString()} Mcoin`)
+    .setDescription(`**${username}** nối: \`${normalizedInput}\`\n💰 +${randomReward.toLocaleString()} Mcoin`)
     .setFooter({ text: `Tiếp theo phải bắt đầu bằng tiếng: ${nextSyllable}` })
     .setTimestamp();
 
@@ -175,7 +177,7 @@ async function handleNoituMessage(client, message, store, content) {
       gameData.isActive = false;
       endNoituGame(client, message, store, channelId, gameData, 'timeout');
     }
-  }, 15 * 1000); // 15 giây
+  }, 15 * 1000);
 
   return true;
 }
@@ -187,7 +189,6 @@ async function endNoituGame(client, message, store, channelId, gameData, reason)
     return message.channel.send('❌ Game kết thúc: Không ai chơi.');
   }
 
-  // Tìm người thắng (điểm cao nhất)
   let winner = null;
   let maxPoints = 0;
   for (const [userId, data] of gameData.players) {
@@ -201,7 +202,6 @@ async function endNoituGame(client, message, store, channelId, gameData, reason)
     return message.channel.send('❌ Game kết thúc: Lỗi xác định người thắng.');
   }
 
-  // Thưởng 50,000 cho người thắng
   const bonusReward = 50000;
   store.addTungXu(winner.userId, bonusReward);
 
