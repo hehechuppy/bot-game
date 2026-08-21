@@ -10,7 +10,7 @@ const WORD_LIST = [
   'chuyên cần', 'cần mẫn', 'mẫn tiệp', 'tiệp tục', 'tục lệ', 'lệ độ', 'độ khó', 'khó khăn',
   'dáng dấp', 'dấp dểu', 'dểu dàng', 'dàng hoàng', 'hoàng hôn', 'hôn thân', 'thân yêu', 'yêu quý',
   'chùm chỉ', 'chỉ tay', 'tay chân', 'chân chạy', 'chạy nhanh', 'nhanh chóng', 'chóng mặt', 'mặt mũi',
-  'bình tĩnh', 'tĩnh lặng', 'lặng im', 'im lặng', 'lặng thầm', 'thầm thì', 'thì thầm', 'thầm kín',
+  'bình tĩnh', 'tĩnh lặng', 'lặng im', 'im lặng', 'lặng thầm', 'thầm thì', 'thầm kín',
   'cơm cháy', 'cháy nóng', 'nóng lạnh', 'lạnh buốt', 'buốt giá', 'giá rét', 'rét mướn', 'mướn tẽn',
   'nước mắt', 'mắt nhìn', 'nhìn thấy', 'thấy được', 'được biết', 'biết rõ', 'rõ ràng', 'ràng buộc',
   'sữa ngựa', 'ngựa chạy', 'chạy tẩu', 'tẩu thoát', 'thoát thân', 'thân xác', 'xác nhận', 'nhận biết',
@@ -78,7 +78,7 @@ async function startNoituGame(client, message, store) {
   const startEmbed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('🎮 GAME NỐI TIẾNG - BẮT ĐẦU')
-    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nNguười chơi hãy nối cụm từ tiếp theo (tiếng đầu = tiếng cuối của cụm từ trước)\n\n⏱️ Luật chơi:\n• Mỗi người có **10-15 giây** để suy nghĩ\n• Không được dùng lại từ đã nói\n• Từ phải là từ có nghĩa trong Tiếng Việt\n• Nối sai hoặc hết thời gian → Thua`)
+    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nNgười chơi hãy nối cụm từ tiếp theo (tiếng đầu = tiếng cuối của cụm từ trước)\n\n⏱️ Luật chơi:\n• Mỗi người có **10-15 giây** để suy nghĩ\n• **Không được nối 2 tiếng trùng nhau** (VD: định định, thẩm thẩm)\n• Không được dùng lại từ đã nói\n• Nối sai hoặc hết thời gian → Thua`)
     .setFooter({ text: `Hãy gõ cụm từ bắt đầu bằng: ${startSyllable}` })
     .setTimestamp();
 
@@ -110,6 +110,21 @@ async function handleNoituMessage(client, message, store, content) {
   // Bỏ qua nếu từ quá ngắn hoặc rỗng sau khi làm sạch
   if (normalizedInput.length < 2) return false;
 
+  const words = normalizedInput.split(/\s+/);
+
+  // ================= KIỂM TRA TỪ ĐIỆP (2 TIẾNG TRÙNG NHAU) =================
+  if (words.length >= 2 && words[0] === words[1]) {
+    try {
+      await message.react('❌');
+    } catch (e) { /* Bỏ qua */ }
+
+    await message.reply(`❌ Không được sử dụng từ lặp lại tiếng (từ điệp) như \`${normalizedInput}\`!`);
+    gameData.isActive = false;
+    clearTimeout(gameData.timeout);
+    endNoituGame(client, message, store, channelId, gameData, 'repetitive');
+    return true;
+  }
+
   // Kiểm tra tiếng đầu có khớp không
   const expectedSyllable = getLastSyllable(gameData.currentPhrase);
   const playerSyllable = getFirstSyllable(normalizedInput);
@@ -126,7 +141,7 @@ async function handleNoituMessage(client, message, store, content) {
     return true;
   }
 
-  // Kiểm tra từ đã dùng chưa (So sánh dựa trên chuỗi đã chuẩn hóa)
+  // Kiểm tra từ đã dùng chưa
   if (gameData.usedPhrases.has(normalizedInput)) {
     try {
       await message.react('❌');
@@ -208,7 +223,8 @@ async function endNoituGame(client, message, store, channelId, gameData, reason)
   const reasonText = {
     'timeout': '⏱️ Hết thời gian',
     'wrong': '❌ Người chơi nối sai tiếng',
-    'duplicate': '🔄 Người chơi nối từ trùng'
+    'duplicate': '🔄 Người chơi nối từ trùng',
+    'repetitive': '⚠️ Dùng từ điệp lặp tiếng'
   }[reason] || 'Game kết thúc';
 
   const leaderboard = Array.from(gameData.players.entries())
