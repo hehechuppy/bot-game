@@ -33,12 +33,16 @@ function getRandomWord() {
   return WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
 }
 
-function getLastChar(word) {
-  return word[word.length - 1].toLowerCase();
+// Lấy từ cuối cùng của một chuỗi từ (tách bằng dấu cách)
+function getLastWord(phrase) {
+  const words = phrase.trim().split(/\s+/);
+  return words[words.length - 1].toLowerCase();
 }
 
-function getFirstChar(word) {
-  return word[0].toLowerCase();
+// Lấy từ đầu tiên của một chuỗi từ
+function getFirstWord(phrase) {
+  const words = phrase.trim().split(/\s+/);
+  return words[0].toLowerCase();
 }
 
 async function startNoituGame(client, message, store) {
@@ -65,8 +69,8 @@ async function startNoituGame(client, message, store) {
   const startEmbed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('🎮 GAME NỐI TỪ - BẮT ĐẦU')
-    .setDescription(`**Từ đầu tiên:** \`${firstWord}\`\n\nNguười chơi hãy nối từ tiếp theo (ký tự đầu = ký tự cuối của từ trước)\n\n⏱️ Game sẽ kết thúc nếu:\n• Không ai nối được trong 30 giây\n• Ai nối sai (ký tự đầu không khớp)\n• Ai nối từ đã dùng`)
-    .setFooter({ text: 'Hãy gõ từ của bạn trong chat!' })
+    .setDescription(`**Từ đầu tiên:** \`${firstWord}\`\n\nNguười chơi hãy nối từ tiếp theo (từ đầu = từ cuối của từ trước)\n\n⏱️ Game sẽ kết thúc nếu:\n• Không ai nối được trong 30 giây\n• Ai nối sai (từ đầu không khớp)\n• Ai nối từ đã dùng`)
+    .setFooter({ text: `Hãy gõ từ bắt đầu bằng: ${firstWord} | Gõ từ của bạn trong chat!` })
     .setTimestamp();
 
   await message.reply({ embeds: [startEmbed] });
@@ -100,9 +104,12 @@ async function handleNoituMessage(client, message, store, content) {
     return false; // Bỏ qua tin nhắn không phải từ
   }
 
-  // Kiểm tra ký tự đầu có khớp không
-  if (getFirstChar(word) !== getLastChar(gameData.currentWord)) {
-    await message.reply(`❌ Sai rồi! Từ của bạn phải bắt đầu bằng \`${getLastChar(gameData.currentWord)}\``);
+  // Kiểm tra từ đầu có khớp với từ cuối của từ trước không
+  const expectedWord = getLastWord(gameData.currentWord);
+  const playerWord = getFirstWord(word);
+  
+  if (playerWord !== expectedWord) {
+    await message.reply(`❌ Sai rồi! Từ của bạn phải bắt đầu bằng \`${expectedWord}\``);
     gameData.isActive = false;
     clearTimeout(gameData.timeout);
     endNoituGame(client, message, store, channelId, gameData, 'wrong');
@@ -137,11 +144,12 @@ async function handleNoituMessage(client, message, store, content) {
     dData.games += 1;
   }
 
+  const nextWord = getLastWord(word);
   const responseEmbed = new EmbedBuilder()
     .setColor('#4CAF50')
-    .setTitle('✅ Từ hợp lệ')
+    .setTitle('✅ Từ Hợp Lệ')
     .setDescription(`**${username}** nối: \`${word}\`\n💰 +${randomReward.toLocaleString()} Mcoin`)
-    .setFooter({ text: `Từ tiếp theo phải bắt đầu bằng: ${getLastChar(word)}` })
+    .setFooter({ text: `Từ tiếp theo phải bắt đầu bằng: ${nextWord}` })
     .setTimestamp();
 
   await message.reply({ embeds: [responseEmbed] });
@@ -202,10 +210,10 @@ async function endNoituGame(client, message, store, channelId, gameData, reason)
   const endEmbed = new EmbedBuilder()
     .setColor('#FFD700')
     .setTitle('🏆 KẾT THÚC GAME NỐI TỪ')
-    .setDescription(`**Lý do kết thúc:** ${reasonText}\n\n**Từ cuối cùng:** \`${gameData.currentWord}\`\n**Tổng từ:** ${gameData.usedWords.size}`)
+    .setDescription(`**Lý do kết thúc:** ${reasonText}\n\n**Từ cuối cùng:** \`${gameData.currentWord}\`\n**Từ cuối cần nối tiếp:** \`${getLastWord(gameData.currentWord)}\`\n**Tổng từ:** ${gameData.usedWords.size}`)
     .addFields(
       { name: '🥇 Người Thắng', value: `<@${winner.userId}> **${winner.name}**`, inline: false },
-      { name: '🎁 Phần Thưởng', value: `💰 ${bonusReward.toLocaleString()} Mcoin + ${winner.points.toLocaleString()} từ nối`, inline: false },
+      { name: '🎁 Phần Thưởng', value: `💰 ${bonusReward.toLocaleString()} Mcoin + 💰 ${winner.points.toLocaleString()} Mcoin từ nối`, inline: false },
       { name: '📊 Bảng Xếp Hạng', value: leaderboard, inline: false }
     )
     .setTimestamp();
