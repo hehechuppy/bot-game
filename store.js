@@ -1,3 +1,5 @@
+const { EmbedBuilder } = require('discord.js');
+
 const economyMap = new Map();
 const dailyDataMap = new Map();
 const usedCodesMap = new Map();
@@ -366,10 +368,40 @@ async function checkAndResetVoiceDaily() {
     return null;
 }
 
-// ================= SAU LƯU VÀ KHÔI PHỤC DỮ LIỆU (BACKUP & RESTORE) =================
+// ================= LỆNH HIỂN THỊ CỬA HÀNG ĐẸP =================
+async function handleShopCommand(message) {
+    const userId = message.author.id;
+    const dData = getDailyData(userId);
+
+    const itemsDescription = SHOP_ITEMS.map((item) => {
+        let limits = '';
+        if (item.dailyLimit !== null) {
+            const bought = dData.itemBuys[item.id] || 0;
+            limits = `\n⏳ **Giới hạn:** \`${bought}/${item.dailyLimit}\`/ngày`;
+        }
+
+        return [
+            `**#${item.id} — ${item.name}**`,
+            `${item.description}`,
+            `${limits}`,
+            `💰 **${item.price.toLocaleString()}** Mcoin`
+        ].filter(Boolean).join('\n');
+    }).join('\n\n');
+
+    const embed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle('🛒 CỬA HÀNG VẬT PHẨM')
+        .setDescription(itemsDescription)
+        .setFooter({ 
+            text: 'Dùng .mua <id> để mua | .sd <id> để dùng | .box/.unbox cho Lucky Box' 
+        });
+
+    return message.reply({ embeds: [embed] });
+}
+
+// ================= SAO LƯU VÀ KHÔI PHỤC DỮ LIỆU (BACKUP & RESTORE) =================
 
 function generateBackupData() {
-    // Chuyển đổi inventoryMap (Map lồng Map) thành dạng mảng 2 chiều để lưu đầy đủ vào JSON
     const inventoryArray = Array.from(inventoryMap.entries()).map(([userId, userInv]) => [
         userId,
         Array.from(userInv.entries())
@@ -423,7 +455,6 @@ function restoreBackupData(jsonData) {
         if (data.inventory) {
             inventoryMap.clear();
             data.inventory.forEach(([userId, userInvArray]) => {
-                // FIX: Convert itemId keys về number (JSON stringify/parse convert thành string)
                 const userInvMap = new Map();
                 userInvArray.forEach(([itemId, qty]) => {
                     userInvMap.set(parseInt(itemId), qty);
@@ -506,6 +537,7 @@ module.exports = {
     getStartOfCurrentDay,
     generateBackupData,
     restoreBackupData,
+    handleShopCommand,
     backupChannelId,
     voiceDayStart
 };
