@@ -109,6 +109,11 @@ async function handleNoituMessage(client, message, store, content) {
   const playerWord = getFirstWord(word);
   
   if (playerWord !== expectedWord) {
+    // Thêm reaction ❌ vào tin nhắn người chơi
+    try {
+      await message.react('❌');
+    } catch (e) { /* Bỏ qua nếu lỗi */ }
+    
     await message.reply(`❌ Sai rồi! Từ của bạn phải bắt đầu bằng \`${expectedWord}\``);
     gameData.isActive = false;
     clearTimeout(gameData.timeout);
@@ -118,6 +123,11 @@ async function handleNoituMessage(client, message, store, content) {
 
   // Kiểm tra từ đã dùng chưa
   if (gameData.usedWords.has(word)) {
+    // Thêm reaction ❌ vào tin nhắn người chơi
+    try {
+      await message.react('❌');
+    } catch (e) { /* Bỏ qua nếu lỗi */ }
+    
     await message.reply(`❌ Từ \`${word}\` đã được dùng rồi!`);
     gameData.isActive = false;
     clearTimeout(gameData.timeout);
@@ -125,7 +135,11 @@ async function handleNoituMessage(client, message, store, content) {
     return true;
   }
 
-  // Từ hợp lệ
+  // Từ hợp lệ - thêm reaction ✅
+  try {
+    await message.react('✅');
+  } catch (e) { /* Bỏ qua nếu lỗi */ }
+  
   gameData.currentWord = word;
   gameData.usedWords.add(word);
   gameData.lastWordTime = Date.now();
