@@ -1,7 +1,6 @@
 // events/messageCreate.js
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const store = require('../store');
-const { createLeaderboardImage } = require('../utils/canvas');
 const { startBauCua } = require('../games/baucua');
 const { startTungXu } = require('../games/tungxu');
 const { startDoanBom } = require('../games/doanbom');
@@ -46,7 +45,7 @@ module.exports = {
       return message.reply({ embeds: [helpEmbed] });
     }
 
-    // ================= XH: BẢNG XẾP HẠNG MCOIN (HIỂN THỊ TÊN + CÓ EMBED ĐẸP) =================
+    // ================= XH: BẢNG XẾP HẠNG MCOIN (CHUẨN FORM ẢNH MẪU) =================
     if (command === 'xh') {
       if (store.economyMap.size === 0) return message.reply('📊 Bảng xếp hạng Mcoin hiện tại đang trống!');
 
@@ -54,12 +53,13 @@ module.exports = {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
 
-      // Lấy danh sách thông tin người dùng (Tên & Số dư)
-      let leaderboardList = '';
+      const medals = ['🥇', '🥈', '🥉'];
+      let desc = '';
+
       for (let i = 0; i < sorted.length; i++) {
         const [uid, balance] = sorted[i];
         const rank = i + 1;
-        
+
         let user;
         try {
           user = await client.users.fetch(uid);
@@ -67,28 +67,29 @@ module.exports = {
           user = null;
         }
 
-        const username = user ? `**${user.displayName || user.username}**` : `*Người dùng ẩn (${uid})*`;
-        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `\`#${rank}\``;
+        const name = user ? (user.displayName || user.username) : `User_${uid.slice(-4)}`;
+        // Định dạng số phân cách bằng dấu chấm (VD: 12.854.045)
+        const formattedMoney = balance.toLocaleString('vi-VN');
 
-        leaderboardList += `${medal} ${username} — **${balance.toLocaleString()}** Mcoin\n`;
+        if (rank <= 3) {
+          desc += `${medals[i]} **${name}** — \`${formattedMoney} Mcoin\`\n\n`;
+        } else {
+          desc += `**#${rank}** **${name}** — \`${formattedMoney} Mcoin\`\n\n`;
+        }
       }
-
-      const buffer = await createLeaderboardImage(sorted, client);
-      const fileAttachment = new AttachmentBuilder(buffer, { name: 'xh.png' });
 
       const xhEmbed = new EmbedBuilder()
         .setColor('#FFD700')
-        .setTitle('🏆 BẢNG XẾP HẠNG TRIỆU PHÚ (TOP MCOIN)')
-        .setDescription(
-          `✨ **Danh sách 10 thành viên giàu nhất máy chủ:**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          leaderboardList +
-          `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-        )
-        .setImage('attachment://xh.png')
-        .setFooter({ text: 'Hãy tích cực tương tác và tham gia mini-game để nâng cao thứ hạng!', iconURL: message.guild ? message.guild.iconURL() : client.user.displayAvatarURL() })
+        .setTitle('🏆 BẢNG XẾP HẠNG PHÚ HỘ MCOIN 🏆')
+        .setDescription(desc.trim())
+        .setThumbnail(message.guild ? message.guild.iconURL({ dynamic: true }) : client.user.displayAvatarURL())
+        .setFooter({
+          text: `Yêu cầu bởi ${message.author.username}`,
+          iconURL: message.author.displayAvatarURL({ dynamic: true })
+        })
         .setTimestamp();
 
-      return message.reply({ embeds: [xhEmbed], files: [fileAttachment] });
+      return message.reply({ embeds: [xhEmbed] });
     }
 
     // ================= XHVOICE: BẢNG XẾP HẠNG VOICE =================
