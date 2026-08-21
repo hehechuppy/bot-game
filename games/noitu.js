@@ -1,7 +1,6 @@
-// games/noitu.js - Game Nối Tiếng (Word Chaining) - Đúng Luật
+// games/noitu.js - Game Nối Tiếng (Word Chaining)
 const { EmbedBuilder } = require('discord.js');
 
-// Danh sách cụm từ/từ ghép Tiếng Việt (tiếng)
 const WORD_LIST = [
   'mùa xuân', 'xuân thì', 'thì thầm', 'thầm lặng', 'lặng yên', 'yên tĩnh', 'tĩnh mơ', 'mơ mộng',
   'ngày hôm', 'hôm nay', 'nay mai', 'mai kia', 'kia quá', 'quá khứ', 'khứ vang', 'vang bóng',
@@ -22,12 +21,11 @@ const WORD_LIST = [
 
 const activeGames = new Map(); // channelId -> gameData
 
-// Hàm chuẩn hóa chuỗi: Loại bỏ ký tự đặc biệt, dấu câu và khoảng trắng thừa
 function normalizeWord(str) {
   return str
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, '') // Xóa hết ký tự đặc biệt như ', ", ., !, ?, ...
-    .replace(/\s+/g, ' ')            // Chuẩn hóa khoảng trắng
+    .replace(/[^\p{L}\p{N}\s]/gu, '') 
+    .replace(/\s+/g, ' ')            
     .trim();
 }
 
@@ -35,7 +33,6 @@ function getRandomPhrase() {
   return WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
 }
 
-// Lấy tiếng cuối cùng của cụm từ
 function getLastSyllable(phrase) {
   const cleanPhrase = normalizeWord(phrase);
   const words = cleanPhrase.split(/\s+/);
@@ -43,7 +40,6 @@ function getLastSyllable(phrase) {
   return words[words.length - 1];
 }
 
-// Lấy tiếng đầu tiên của cụm từ
 function getFirstSyllable(phrase) {
   const cleanPhrase = normalizeWord(phrase);
   const words = cleanPhrase.split(/\s+/);
@@ -55,7 +51,7 @@ async function startNoituGame(client, message, store) {
   const channelId = message.channelId;
 
   if (activeGames.has(channelId)) {
-    return message.reply('⚠️ Đã có game nối tiếng đang chạy trong kênh này! Chờ đến khi kết thúc.');
+    return message.reply('⚠️ Đã có game nối tiếng đang chạy trong kênh này!');
   }
 
   const firstPhrase = getRandomPhrase();
@@ -63,13 +59,11 @@ async function startNoituGame(client, message, store) {
 
   const gameData = {
     currentPhrase: firstPhrase,
-    usedPhrases: new Set([normalizedFirst]), // Lưu dạng chuẩn hóa để check trùng chính xác
+    usedPhrases: new Set([normalizedFirst]),
     players: new Map(),
+    lastPlayerId: null, // Lưu ID người vừa trả lời đúng gần nhất
     isActive: true,
-    startTime: Date.now(),
-    lastWordTime: Date.now(),
-    playerOrder: [],
-    currentPlayerIndex: 0
+    startTime: Date.now()
   };
 
   activeGames.set(channelId, gameData);
@@ -78,20 +72,20 @@ async function startNoituGame(client, message, store) {
   const startEmbed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('🎮 GAME NỐI TIẾNG - BẮT ĐẦU')
-    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nNgười chơi hãy nối cụm từ tiếp theo (tiếng đầu = tiếng cuối của cụm từ trước)\n\n⏱️ Luật chơi:\n• Mỗi người có **10-15 giây** để suy nghĩ\n• **Không được nối 2 tiếng trùng nhau** (VD: định định, thẩm thẩm)\n• Không được dùng lại từ đã nói\n• Nối sai hoặc hết thời gian → Thua`)
+    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nLuật chơi:\n• Mỗi lượt có **15 giây** để trả lời\n• **Không thể trả lời 2 lần liên tiếp** (phải chờ người khác)\n• **Không dùng từ điệp** (VD: kín kín, định định)\n• Sai từ chỉ bị nhắc nhở, game chỉ dừng khi **hết 15 giây** không ai nối tiếp!`)
     .setFooter({ text: `Hãy gõ cụm từ bắt đầu bằng: ${startSyllable}` })
     .setTimestamp();
 
   await message.reply({ embeds: [startEmbed] });
 
-  const gameTimeout = setTimeout(async () => {
+  // Set timeout chờ người nối từ đầu tiên
+  gameData.timeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
       gameData.isActive = false;
-      endNoituGame(client, message, store, channelId, gameData, 'timeout');
+      endNoituGame(client, message, store, channelId, gameData);
     }
-  }, 10 * 60 * 1000);
+  }, 15 * 1000);
 
-  gameData.timeout = gameTimeout;
   return gameData;
 }
 
@@ -107,61 +101,46 @@ async function handleNoituMessage(client, message, store, content) {
   const rawPhrase = content.trim();
   const normalizedInput = normalizeWord(rawPhrase);
 
-  // Bỏ qua nếu từ quá ngắn hoặc rỗng sau khi làm sạch
   if (normalizedInput.length < 2) return false;
 
-  const words = normalizedInput.split(/\s+/);
-
-  // ================= KIỂM TRA TỪ ĐIỆP (2 TIẾNG TRÙNG NHAU) =================
-  if (words.length >= 2 && words[0] === words[1]) {
-    try {
-      await message.react('❌');
-    } catch (e) { /* Bỏ qua */ }
-
-    await message.reply(`❌ Không được sử dụng từ lặp lại tiếng (từ điệp) như \`${normalizedInput}\`!`);
-    gameData.isActive = false;
-    clearTimeout(gameData.timeout);
-    endNoituGame(client, message, store, channelId, gameData, 'repetitive');
-    return true;
+  // 1. KIỂM TRA LƯỢT CHƠI (Không cho 1 người nối 2 lần liên tiếp)
+  if (gameData.lastPlayerId === userId) {
+    try { await message.react('⚠️'); } catch (e) {}
+    await message.reply(`⚠️ **${username}**, bạn vừa nối rồi! Hãy chờ người khác trả lời tiếp.`);
+    return true; // Không dừng game
   }
 
-  // Kiểm tra tiếng đầu có khớp không
+  // 2. KIỂM TRA TỪ ĐIỆP (2 tiếng lặp lại)
+  const words = normalizedInput.split(/\s+/);
+  if (words.length >= 2 && words[0] === words[1]) {
+    try { await message.react('❌'); } catch (e) {}
+    await message.reply(`❌ Không được dùng từ lặp tiếng như \`${normalizedInput}\`! Thử từ khác nhé.`);
+    return true; // Cảnh báo, giữ game chạy
+  }
+
+  // 3. KIỂM TRA TIẾNG ĐẦU KHỚP VỚI TIẾNG CUỐI
   const expectedSyllable = getLastSyllable(gameData.currentPhrase);
   const playerSyllable = getFirstSyllable(normalizedInput);
 
   if (playerSyllable !== expectedSyllable) {
-    try {
-      await message.react('❌');
-    } catch (e) { /* Bỏ qua */ }
-
+    try { await message.react('❌'); } catch (e) {}
     await message.reply(`❌ Sai rồi! Cụm từ phải bắt đầu bằng tiếng: \`${expectedSyllable}\``);
-    gameData.isActive = false;
-    clearTimeout(gameData.timeout);
-    endNoituGame(client, message, store, channelId, gameData, 'wrong');
-    return true;
+    return true; // Cảnh báo, giữ game chạy
   }
 
-  // Kiểm tra từ đã dùng chưa
+  // 4. KIỂM TRA TỪ ĐÃ ĐƯỢC DÙNG CHƯA
   if (gameData.usedPhrases.has(normalizedInput)) {
-    try {
-      await message.react('❌');
-    } catch (e) { /* Bỏ qua */ }
-
-    await message.reply(`❌ Cụm từ \`${normalizedInput}\` đã được dùng rồi!`);
-    gameData.isActive = false;
-    clearTimeout(gameData.timeout);
-    endNoituGame(client, message, store, channelId, gameData, 'duplicate');
-    return true;
+    try { await message.react('❌'); } catch (e) {}
+    await message.reply(`❌ Cụm từ \`${normalizedInput}\` đã được sử dụng rồi!`);
+    return true; // Cảnh báo, giữ game chạy
   }
 
-  // Cụm từ hợp lệ
-  try {
-    await message.react('✅');
-  } catch (e) { /* Bỏ qua */ }
+  // ================= CỤM TỪ HỢP LỆ =================
+  try { await message.react('✅'); } catch (e) {}
 
   gameData.currentPhrase = normalizedInput;
   gameData.usedPhrases.add(normalizedInput);
-  gameData.lastWordTime = Date.now();
+  gameData.lastPlayerId = userId; // Ghi nhận người vừa trả lời đúng
 
   if (!gameData.players.has(userId)) {
     gameData.players.set(userId, { name: username, points: 0 });
@@ -185,23 +164,23 @@ async function handleNoituMessage(client, message, store, content) {
 
   await message.reply({ embeds: [responseEmbed] });
 
-  // Reset timeout - 15 giây chờ người tiếp theo
+  // Reset đếm ngược 15 giây cho lượt tiếp theo
   clearTimeout(gameData.timeout);
   gameData.timeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
       gameData.isActive = false;
-      endNoituGame(client, message, store, channelId, gameData, 'timeout');
+      endNoituGame(client, message, store, channelId, gameData);
     }
   }, 15 * 1000);
 
   return true;
 }
 
-async function endNoituGame(client, message, store, channelId, gameData, reason) {
+async function endNoituGame(client, message, store, channelId, gameData) {
   activeGames.delete(channelId);
 
   if (gameData.players.size === 0) {
-    return message.channel.send('❌ Game kết thúc: Không ai chơi.');
+    return message.channel.send('⏱️ **Hết thời gian!** Game kết thúc do không có ai tham gia.');
   }
 
   let winner = null;
@@ -214,18 +193,11 @@ async function endNoituGame(client, message, store, channelId, gameData, reason)
   }
 
   if (!winner) {
-    return message.channel.send('❌ Game kết thúc: Lỗi xác định người thắng.');
+    return message.channel.send('⏱️ **Hết thời gian!** Game kết thúc.');
   }
 
   const bonusReward = 50000;
   store.addTungXu(winner.userId, bonusReward);
-
-  const reasonText = {
-    'timeout': '⏱️ Hết thời gian',
-    'wrong': '❌ Người chơi nối sai tiếng',
-    'duplicate': '🔄 Người chơi nối từ trùng',
-    'repetitive': '⚠️ Dùng từ điệp lặp tiếng'
-  }[reason] || 'Game kết thúc';
 
   const leaderboard = Array.from(gameData.players.entries())
     .sort((a, b) => b[1].points - a[1].points)
@@ -240,10 +212,10 @@ async function endNoituGame(client, message, store, channelId, gameData, reason)
   const endEmbed = new EmbedBuilder()
     .setColor('#FFD700')
     .setTitle('🏆 KẾT THÚC GAME NỐI TIẾNG')
-    .setDescription(`**Lý do kết thúc:** ${reasonText}\n\n**Cụm từ cuối cùng:** \`${gameData.currentPhrase}\`\n**Tổng cụm từ nối:** ${gameData.usedPhrases.size}`)
+    .setDescription(`⏱️ **Hết 15 giây mà không có ai nối tiếp!**\n\n**Cụm từ cuối:** \`${gameData.currentPhrase}\`\n**Tổng số từ đã nối:** ${gameData.usedPhrases.size - 1}`)
     .addFields(
-      { name: '🥇 Người Thắng', value: `<@${winner.userId}> **${winner.name}**`, inline: false },
-      { name: '🎁 Phần Thưởng', value: `💰 ${bonusReward.toLocaleString()} Mcoin + 💰 ${winner.points.toLocaleString()} Mcoin từ cụm từ nối`, inline: false },
+      { name: '🥇 Người Thắng Cuộc', value: `<@${winner.userId}> **${winner.name}**`, inline: false },
+      { name: '🎁 Phần Thưởng Quán Quân', value: `💰 ${bonusReward.toLocaleString()} Mcoin + 💰 ${winner.points.toLocaleString()} Mcoin tích lũy`, inline: false },
       { name: '📊 Bảng Xếp Hạng', value: leaderboard || 'Không có', inline: false }
     )
     .setTimestamp();
