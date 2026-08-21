@@ -1,10 +1,12 @@
 // events/messageCreate.js
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const store = require('../store');
+const { createLeaderboardImage } = require('../utils/canvas');
 const { startBauCua } = require('../games/baucua');
 const { startTungXu } = require('../games/tungxu');
 const { startDoanBom } = require('../games/doanbom');
 const { startMaSoi } = require('../games/masoi');
+const { startNoituGame, handleNoituMessage, activeGames } = require('../games/noitu');
 
 module.exports = {
   name: 'messageCreate',
@@ -14,7 +16,14 @@ module.exports = {
     const dData = store.getDailyData(userId);
     if (!dData.claimedMsg && dData.messages < 20) dData.messages++;
 
-    if (!message.content.startsWith('.')) return;
+    // ================= KIỂM TRA GAME NỐI TỪ ĐANG CHẠY =================
+    if (!message.content.startsWith('.')) {
+      // Kiểm tra nếu có game nối từ đang chạy trong channel
+      if (activeGames.has(message.channelId)) {
+        await handleNoituMessage(client, message, store, message.content);
+      }
+      return;
+    }
 
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
@@ -27,62 +36,29 @@ module.exports = {
         .addFields(
           { name: '💰 Kinh Tế', value: '`.tien` • `.diemdanh` • `.daily` • `.code` • `.nhapcode` • `.donate`', inline: false },
           { name: '🛒 Cửa Hàng', value: '`.shop` • `.mua <id>` • `.sd <id>` • `.box` • `.unbox [số]`', inline: false },
-          { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`)', inline: false },
+          { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`) • `.noitu` (`.nt`)', inline: false },
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh` • `.xhvoice`', inline: false },
-          { name: '💼 Kho đồ đã mua', value: '`.kho`', inline: false },
+          { name: '💼 Kho Đồ Đã Mua', value: '`.kho`', inline: false },
           { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
-          { name: '❗ Luật server ＳＨＡＤＯＷ  ＧＬＡＤＥ', value: '`cấm bug tiền`', inline: false },
+          { name: '❗ Luật Server SHADOW GLADE', value: '`cấm bug tiền`', inline: false },
         )
         .setFooter({ text: 'Sử dụng .help để xem hướng dẫn', iconURL: client.user.displayAvatarURL() })
         .setTimestamp();
       return message.reply({ embeds: [helpEmbed] });
     }
 
-    // ================= XH: BẢNG XẾP HẠNG PHÚ HỘ MCOIN =================
     if (command === 'xh') {
       if (store.economyMap.size === 0) return message.reply('📊 Bảng xếp hạng trống!');
-
-      const sorted = Array.from(store.economyMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-
-      const medals = ['🥇', '🥈', '🥉'];
-      const descriptionLines = [];
-
-      for (let i = 0; i < sorted.length; i++) {
-        const [uid, amount] = sorted[i];
-        let displayName = 'Người dùng ẩn danh';
-
-        // Lấy tên người chơi từ cache hoặc fetch trực tiếp từ API Discord
-        try {
-          const user = await client.users.fetch(uid);
-          displayName = user.globalName || user.username;
-        } catch (err) {
-          displayName = `User (${uid.slice(-4)})`;
-        }
-
-        const rankIcon = medals[i] || `**#${i + 1}**`;
-        const formattedAmount = amount.toLocaleString('vi-VN');
-
-        descriptionLines.push(`${rankIcon} **${displayName}** — \`${formattedAmount} Mcoin\``);
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor('#FFD700')
-        .setTitle('🏆 BẢNG XẾP HẠNG PHÚ HỘ MCOIN 🏆')
-        .setDescription(descriptionLines.join('\n\n'))
-        .setThumbnail(message.guild.iconURL({ dynamic: true }) || null)
-        .setFooter({ text: `Yêu cầu bởi ${message.author.username}`, iconURL: message.author.displayAvatarURL() })
-        .setTimestamp();
-
-      return message.reply({ embeds: [embed] });
+      const sorted = Array.from(store.economyMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const buffer = await createLeaderboardImage(sorted, client);
+      return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'xh.png' })] });
     }
 
-    // ================= XHVOICE: BẢNG XẾP HẠNG THỜI GIAN VOICE (RESET HÀNG NGÀY) =================
+    // ================= XHVOICE: BẢNG XẾP HẠNG THỜI GIAN VOICE (RESET HÀNG TUẦN) =================
     if (command === 'xhvoice') {
       const top10 = store.getVoiceLeaderboard(10);
       if (top10.length === 0) {
-        return message.reply('📊 Chưa có ai treo voice hôm nay!');
+        return message.reply('📊 Chưa có ai treo voice tuần này!');
       }
 
       const rewardText = (rank) => {
@@ -102,14 +78,15 @@ module.exports = {
         desc += `${medal} <@${uid}> — ⏱️ ${hours}h${mins}m\n${rewardText(rank)}\n\n`;
       }
 
-      const nextResetMs = store.getStartOfCurrentDay() + 24 * 60 * 60 * 1000;
+      // Mốc thời gian thứ 2 00:00:00 UTC tuần tiếp theo (thời điểm reset)
+      const nextResetMs = store.voiceWeekStart + 7 * 24 * 60 * 60 * 1000;
       const resetAt = Math.floor(nextResetMs / 1000);
 
       const voiceEmbed = new EmbedBuilder()
         .setColor('#00BFFF')
-        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (HÔM NAY)')
+        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (TUẦN NÀY)')
         .setDescription(desc)
-        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset ngày lúc 00:00' })
+        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset tuần (Thứ 2 00:00 UTC)' })
         .setTimestamp(nextResetMs);
 
       return message.reply({
@@ -136,7 +113,7 @@ module.exports = {
     }
 
     if (command === 'nhapcode') {
-      if (!args[0]) return message.reply('❌ Vui lòng nhập mã code!, .nhapcode <code>');
+      if (!args[0]) return message.reply('❌ Vui lòng nhập mã code! .nhapcode <code>');
       const codeInput = args[0].toLowerCase();
       if (!store.customCodesMap.has(codeInput)) return message.reply('❌ Mã code không tồn tại!');
       const codeData = store.customCodesMap.get(codeInput);
@@ -224,10 +201,7 @@ module.exports = {
       }
 
       if (item.type === 'box') {
-        // FIX: Dùng itemBuys (mua) không phải itemUses (dùng)
-        const dData = store.getDailyData(userId);
-        const bought = dData.itemBuys[itemId] || 0;
-        const remaining = item.dailyLimit - bought;
+        const remaining = item.dailyLimit - (store.getDailyData(userId).itemBuys[itemId] || 0);
         return message.reply(`✅ Đã mua **${item.name}**!\n📦 Dùng \`.box\` để xem, \`.unbox\` để mở.\n⏳ Còn lại: **${remaining}/${item.dailyLimit}** cái hôm nay`);
       }
       return message.reply(`✅ Đã mua **${item.name}**!\n⚡ Dùng \`.sd ${item.id}\` để kích hoạt.`);
@@ -393,6 +367,11 @@ module.exports = {
     if (['tungxu','tx'].includes(command)) return startTungXu(client, message, store);
     if (['doanbom','bom'].includes(command)) return startDoanBom(client, message, store);
     if (['masoi','ms'].includes(command)) return startMaSoi(client, message, store);
+
+    // ================= GAME NOITU - NỐI TỪ =================
+    if (['noitu', 'nt'].includes(command)) {
+      return startNoituGame(client, message, store);
+    }
 
     if (command === 'tien' || command === 'sodu') {
       const bal = store.economyMap.get(userId) || 0;
