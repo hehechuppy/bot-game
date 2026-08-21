@@ -19,7 +19,7 @@ module.exports = {
           option.setName('code').setDescription('Tên mã code').setRequired(true)
         )
         .addIntegerOption(option =>
-          option.setName('reward').setDescription('Số Mcoin để phần thưởng').setRequired(true).setMinValue(1)
+          option.setName('reward').setDescription('Số Mcoin làm phần thưởng').setRequired(true).setMinValue(1)
         )
         .addIntegerOption(option =>
           option.setName('duration').setDescription('Thời hạn (phút), 0 = vĩnh viễn').setRequired(false).setMinValue(0)
@@ -36,16 +36,42 @@ module.exports = {
 
       new SlashCommandBuilder()
         .setName('setbackup')
-        .setDescription('📁 Cài đặt kênh backup (Admin)')
+        .setDescription('📁 Cài đặt kênh lưu tự động backup (Admin)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .setDMPermission(false)
         .addChannelOption(option =>
           option.setName('channel').setDescription('Kênh để lưu backup').setRequired(true)
         ),
 
-           new SlashCommandBuilder()
+      new SlashCommandBuilder()
+        .setName('tangqua')
+        .setDescription('🎁 Tặng vật phẩm cho người chơi (Admin)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .setDMPermission(false)
+        .addUserOption(option =>
+          option
+            .setName('user')
+            .setDescription('Chọn người nhận quà')
+            .setRequired(true)
+        )
+        .addIntegerOption(option =>
+          option
+            .setName('item')
+            .setDescription('ID vật phẩm (VD: 6 = Lucky Box, 1 = X3 Mcoin)')
+            .setRequired(true)
+            .setMinValue(1)
+        )
+        .addIntegerOption(option =>
+          option
+            .setName('quantity')
+            .setDescription('Số lượng vật phẩm')
+            .setRequired(true)
+            .setMinValue(1)
+        ),
+
+      new SlashCommandBuilder()
         .setName('backup')
-        .setDescription('💾 Khôi phục dữ liệu từ file (Admin)')
+        .setDescription('💾 Khôi phục dữ liệu từ file backup (Admin)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .setDMPermission(false)
         .addAttachmentOption(option =>
@@ -58,7 +84,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .setDMPermission(false)
         .addUserOption(option =>
-          option.setName('target').setDescription('Người chơi cần chỉnh').setRequired(true)
+          option.setName('target').setDescription('Người chơi cần chỉnh sửa').setRequired(true)
         )
         .addStringOption(option =>
           option.setName('action').setDescription('Hành động').setRequired(true)
@@ -72,40 +98,40 @@ module.exports = {
           option.setName('amount').setDescription('Số Mcoin').setRequired(true).setMinValue(0)
         )
         .addStringOption(option =>
-          option.setName('reason').setDescription('Lý do (không bắt buộc)').setRequired(false)
+          option.setName('reason').setDescription('Lý do chỉnh sửa (không bắt buộc)').setRequired(false)
         )
     ];
 
     try {
       await client.application.commands.set(commands);
-      console.log('✅ Đã đăng ký 4 slash commands (admin)');
+      console.log(`✅ Đã đăng ký thành công ${commands.length} slash commands (Admin)`);
     } catch (err) {
-      console.error('❌ Lỗi đăng ký slash commands:', err);
+      console.error('❌ Lỗi khi đăng ký slash commands:', err);
     }
 
-    // ========== CÀY XU VOICE: MỖI 1 PHÚT CỘNG THÊM 60 GIÂY ==========
-    // Ai đang ở voice sẽ nhận random Mcoin + cộng voice time
-    // Nếu cùng phút sẽ đứng cùng top nhau
-    // Mỗi 0h sẽ phát thưởng x2 cho cả .xhvoice và .xh
+    // ================= CÀY XU VOICE =================
+    // Vòng lặp chạy định kỳ mỗi 60 giây (1 phút):
+    // 1. Quét tất cả phòng voice trong server để phát thưởng Mcoin ngẫu nhiên & cộng 60 giây thời gian treo.
+    // 2. Kiểm tra chuyển ngày mới để tính toán, tự động phát thưởng x2 cho Top 1-10 và reset bảng xếp hạng.
     setInterval(async () => {
       client.guilds.cache.forEach(guild => {
         guild.channels.cache.filter(c => c.isVoiceBased()).forEach(channel => {
           channel.members.forEach(member => {
             if (!member.user.bot) {
-              // Nhận random Mcoin (1000-5000)
+              // Thưởng ngẫu nhiên từ 1,000 - 5,000 Mcoin cơ bản
               const baseEarned = Math.floor(Math.random() * 4001) + 1000;
               const multiplier = store.getVoiceMultiplier(member.id);
               const earned = baseEarned * multiplier;
               store.addTungXu(member.id, earned);
 
-              // Cộng 60 giây (1 phút) vào thời gian voice hằng ngày
+              // Cộng 60 giây vào tổng thời gian Voice
               store.addVoiceTime(member.id, 60);
             }
           });
         });
       });
 
-      // Kiểm tra xem đã sang ngày mới chưa -> nếu có, tự động phát thưởng top 1-10 (x2) và reset bảng
+      // Tự động kiểm tra reset theo ngày và thông báo trao thưởng
       try {
         const result = await store.checkAndResetVoiceDay();
         if (result && result.winners && result.winners.length > 0) {
@@ -132,6 +158,6 @@ module.exports = {
       } catch (err) {
         console.error('❌ Lỗi khi reset/phát thưởng bảng xếp hạng voice:', err);
       }
-    }, 60000); // 60 giây = 1 phút
+    }, 60000); // 60,000ms = 1 phút
   },
 };
