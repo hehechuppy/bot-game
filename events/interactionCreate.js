@@ -11,44 +11,79 @@ const {
 
 const store = require('../store');
 
-function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
+function buildPlayerButtons(
+  prefix,
+  gameMsgId,
+  gameData,
+  targetIds
+) {
   const rows = [];
-  let row = new ActionRowBuilder();
+
+  let row =
+    new ActionRowBuilder();
+
   let count = 0;
 
-  for (const uid of targetIds.slice(0, 25)) {
+  for (
+    const uid of targetIds.slice(0, 25)
+  ) {
     if (count === 5) {
       rows.push(row);
-      row = new ActionRowBuilder();
+
+      row =
+        new ActionRowBuilder();
+
       count = 0;
     }
 
-    const name = gameData.participants.get(uid) || 'Người chơi';
+    const name =
+      gameData.participants.get(uid) ||
+      'Người chơi';
 
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`${prefix}_${uid}_${gameMsgId}`)
-        .setLabel(name.slice(0, 80))
-        .setStyle(ButtonStyle.Secondary)
+        .setCustomId(
+          `${prefix}_${uid}_${gameMsgId}`
+        )
+        .setLabel(
+          name.slice(0, 80)
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        )
     );
 
     count++;
   }
 
-  if (count > 0) rows.push(row);
+  if (count > 0) {
+    rows.push(row);
+  }
+
   return rows;
 }
 
 async function safeRespond(fn) {
   try {
     return await fn();
+
   } catch (err) {
-    if (err?.code === 10062 || err?.code === 40060) {
-      console.warn(`⚠️ Bỏ qua lỗi interaction ${err.code}`);
+    if (
+      err?.code === 10062 ||
+      err?.code === 40060
+    ) {
+      console.warn(
+        `⚠️ Bỏ qua lỗi interaction ${err.code}`
+      );
+
       return null;
     }
 
-    console.error('❌ Interaction response error:', err);
+    console.error(
+      '❌ Interaction response error:',
+      err
+    );
+
     return null;
   }
 }
@@ -56,36 +91,55 @@ async function safeRespond(fn) {
 module.exports = {
   name: 'interactionCreate',
 
-  async execute(client, interaction) {
+  async execute(
+    client,
+    interaction
+  ) {
     try {
 
       // =========================================================
       // AUTOCOMPLETE
       // =========================================================
-      if (interaction.isAutocomplete()) {
-        if (interaction.commandName === 'xoacode') {
-          const focusedValue = interaction.options.getFocused();
 
-          const allCodes = Array.from(
-            store.customCodesMap.keys()
-          );
+      if (
+        interaction.isAutocomplete()
+      ) {
+        if (
+          interaction.commandName ===
+          'xoacode'
+        ) {
+          const focusedValue =
+            interaction.options.getFocused();
 
-          const filtered = allCodes
-            .filter(code =>
-              code.toLowerCase().includes(
-                focusedValue.toLowerCase()
+          const allCodes =
+            Array.from(
+              store.customCodesMap.keys()
+            );
+
+          const filtered =
+            allCodes
+              .filter(code =>
+                code
+                  .toLowerCase()
+                  .includes(
+                    focusedValue
+                      .toLowerCase()
+                  )
               )
-            )
-            .slice(0, 25);
+              .slice(0, 25);
 
-          const choices = filtered.map(code => ({
-            name:
-              `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
-            value: code
-          }));
+          const choices =
+            filtered.map(code => ({
+              name:
+                `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
+
+              value: code
+            }));
 
           return await safeRespond(() =>
-            interaction.respond(choices)
+            interaction.respond(
+              choices
+            )
           );
         }
 
@@ -95,85 +149,151 @@ module.exports = {
       // =========================================================
       // SLASH COMMANDS
       // =========================================================
-      if (interaction.isChatInputCommand()) {
-        const { commandName } = interaction;
+
+      if (
+        interaction.isChatInputCommand()
+      ) {
+        const {
+          commandName
+        } = interaction;
 
         const isAdmin =
           interaction.member?.permissions?.has(
             PermissionFlagsBits.Administrator
           );
 
-        // ================= TANGQUA - Tặng vật phẩm =================
-if (commandName === 'tangqua') {
-  if (!isAdmin) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: '❌ Bạn không có quyền sử dụng lệnh này!',
-        ephemeral: true
-      })
-    );
-  }
+        // ================= TANGQUA =================
 
-  const targetUser = interaction.options.getUser('user');
-  const itemId = interaction.options.getInteger('item');
-  const quantity = interaction.options.getInteger('quantity');
+        if (
+          commandName === 'tangqua'
+        ) {
+          if (!isAdmin) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  '❌ Bạn không có quyền sử dụng lệnh này!',
+                ephemeral: true
+              })
+            );
+          }
 
-  if (!targetUser) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: '❌ Vui lòng chỉ định người nhận!',
-        ephemeral: true
-      })
-    );
-  }
+          const targetUser =
+            interaction.options.getUser(
+              'user'
+            );
 
-  const item = store.SHOP_ITEMS.find(i => i.id === itemId);
-  if (!item) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: `❌ Không tìm thấy vật phẩm ID ${itemId}!`,
-        ephemeral: true
-      })
-    );
-  }
+          const itemId =
+            interaction.options.getInteger(
+              'item'
+            );
 
-  if (quantity <= 0) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: '❌ Số lượng phải lớn hơn 0!',
-        ephemeral: true
-      })
-    );
-  }
+          const quantity =
+            interaction.options.getInteger(
+              'quantity'
+            );
 
-  // Thêm vật phẩm vào kho người nhận
-  store.addToInventory(targetUser.id, itemId, quantity);
+          if (!targetUser) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  '❌ Vui lòng chỉ định người nhận!',
+                ephemeral: true
+              })
+            );
+          }
 
-  const giftEmbed = new EmbedBuilder()
-    .setColor('#FF69B4')
-    .setTitle('🎁 TẶNG VẬT PHẨM - THÀNH CÔNG')
-    .addFields(
-      { name: '🎉 Người Nhận', value: `${targetUser.username}`, inline: true },
-      { name: '📦 Vật Phẩm', value: `${item.name} (ID: ${item.id})`, inline: true },
-      { name: '📊 Số Lượng', value: `**${quantity}** cái`, inline: true },
-      { name: '💰 Giá Trị', value: `${(item.price * quantity).toLocaleString()} Mcoin`, inline: true },
-      { name: '👨‍💼 Người Tặng', value: interaction.user.username, inline: true }
-    )
-    .setFooter({ text: 'Vật phẩm đã được thêm vào kho của người nhận' })
-    .setTimestamp();
+          const item =
+            store.SHOP_ITEMS.find(
+              i => i.id === itemId
+            );
 
-  await safeRespond(() =>
-    interaction.reply({
-      embeds: [giftEmbed],
-      ephemeral: false
-    })
-  );
+          if (!item) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  `❌ Không tìm thấy vật phẩm ID ${itemId}!`,
+                ephemeral: true
+              })
+            );
+          }
 
-  return;
-}
+          if (
+            quantity <= 0
+          ) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  '❌ Số lượng phải lớn hơn 0!',
+                ephemeral: true
+              })
+            );
+          }
 
-        // ---------------- TAO CODE ----------------
-        if (commandName === 'taocode') {
+          store.addToInventory(
+            targetUser.id,
+            itemId,
+            quantity
+          );
+
+          const giftEmbed =
+            new EmbedBuilder()
+              .setColor('#FF69B4')
+              .setTitle(
+                '🎁 TẶNG VẬT PHẨM - THÀNH CÔNG'
+              )
+              .addFields(
+                {
+                  name: '🎉 Người Nhận',
+                  value:
+                    `${targetUser.username}`,
+                  inline: true
+                },
+                {
+                  name: '📦 Vật Phẩm',
+                  value:
+                    `${item.name} (ID: ${item.id})`,
+                  inline: true
+                },
+                {
+                  name: '📊 Số Lượng',
+                  value:
+                    `**${quantity}** cái`,
+                  inline: true
+                },
+                {
+                  name: '💰 Giá Trị',
+                  value:
+                    `${(item.price * quantity).toLocaleString()} Mcoin`,
+                  inline: true
+                },
+                {
+                  name: '👨‍💼 Người Tặng',
+                  value:
+                    interaction.user.username,
+                  inline: true
+                }
+              )
+              .setFooter({
+                text:
+                  'Vật phẩm đã được thêm vào kho của người nhận'
+              })
+              .setTimestamp();
+
+          await safeRespond(() =>
+            interaction.reply({
+              embeds: [giftEmbed],
+              ephemeral: false
+            })
+          );
+
+          return;
+        }
+
+        // ================= TAO CODE =================
+
+        if (
+          commandName === 'taocode'
+        ) {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
@@ -184,18 +304,27 @@ if (commandName === 'tangqua') {
             );
           }
 
-          const codeName = interaction.options
-            .getString('code')
-            .toLowerCase()
-            .trim();
+          const codeName =
+            interaction.options
+              .getString('code')
+              .toLowerCase()
+              .trim();
 
           const rewardAmount =
-            interaction.options.getInteger('reward');
+            interaction.options.getInteger(
+              'reward'
+            );
 
           const durationMinutes =
-            interaction.options.getInteger('duration');
+            interaction.options.getInteger(
+              'duration'
+            );
 
-          if (store.customCodesMap.has(codeName)) {
+          if (
+            store.customCodesMap.has(
+              codeName
+            )
+          ) {
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -213,17 +342,23 @@ if (commandName === 'tangqua') {
           ) {
             expiresAt =
               Date.now() +
-              durationMinutes * 60 * 1000;
+              durationMinutes *
+                60 *
+                1000;
           }
 
-          store.customCodesMap.set(codeName, {
-            reward: rewardAmount,
-            expiresAt
-          });
+          store.customCodesMap.set(
+            codeName,
+            {
+              reward: rewardAmount,
+              expiresAt
+            }
+          );
 
-          const timeStr = expiresAt
-            ? `<t:${Math.floor(expiresAt / 1000)}:R>`
-            : 'Vĩnh viễn';
+          const timeStr =
+            expiresAt
+              ? `<t:${Math.floor(expiresAt / 1000)}:R>`
+              : 'Vĩnh viễn';
 
           const successEmbed =
             new EmbedBuilder()
@@ -244,8 +379,11 @@ if (commandName === 'tangqua') {
           );
         }
 
-        // ---------------- XOA CODE ----------------
-        if (commandName === 'xoacode') {
+        // ================= XOA CODE =================
+
+        if (
+          commandName === 'xoacode'
+        ) {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
@@ -256,12 +394,17 @@ if (commandName === 'tangqua') {
             );
           }
 
-          const codeName = interaction.options
-            .getString('code')
-            .toLowerCase()
-            .trim();
+          const codeName =
+            interaction.options
+              .getString('code')
+              .toLowerCase()
+              .trim();
 
-          if (!store.customCodesMap.has(codeName)) {
+          if (
+            !store.customCodesMap.has(
+              codeName
+            )
+          ) {
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -272,9 +415,13 @@ if (commandName === 'tangqua') {
           }
 
           const deletedCode =
-            store.customCodesMap.get(codeName);
+            store.customCodesMap.get(
+              codeName
+            );
 
-          store.customCodesMap.delete(codeName);
+          store.customCodesMap.delete(
+            codeName
+          );
 
           const successEmbed =
             new EmbedBuilder()
@@ -296,8 +443,11 @@ if (commandName === 'tangqua') {
           );
         }
 
-        // ---------------- SET BACKUP ----------------
-        if (commandName === 'setbackup') {
+        // ================= SET BACKUP =================
+
+        if (
+          commandName === 'setbackup'
+        ) {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
@@ -309,9 +459,12 @@ if (commandName === 'tangqua') {
           }
 
           const channel =
-            interaction.options.getChannel('channel');
+            interaction.options.getChannel(
+              'channel'
+            );
 
-          store.backupChannelId = channel.id;
+          store.backupChannelId =
+            channel.id;
 
           return await safeRespond(() =>
             interaction.reply({
@@ -322,8 +475,11 @@ if (commandName === 'tangqua') {
           );
         }
 
-        // ---------------- BACKUP ----------------
-        if (commandName === 'backup') {
+        // ================= BACKUP =================
+
+        if (
+          commandName === 'backup'
+        ) {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
@@ -335,12 +491,15 @@ if (commandName === 'tangqua') {
           }
 
           const attachment =
-            interaction.options.getAttachment('file');
+            interaction.options.getAttachment(
+              'file'
+            );
 
           if (!attachment) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Thiếu file JSON!',
+                content:
+                  '❌ Thiếu file JSON!',
                 ephemeral: true
               })
             );
@@ -348,7 +507,9 @@ if (commandName === 'tangqua') {
 
           try {
             const response =
-              await fetch(attachment.url);
+              await fetch(
+                attachment.url
+              );
 
             if (!response.ok) {
               throw new Error(
@@ -357,53 +518,73 @@ if (commandName === 'tangqua') {
             }
 
             const data =
-              JSON.parse(await response.text());
+              JSON.parse(
+                await response.text()
+              );
 
             if (data.economy) {
               store.economyMap.clear();
 
-              data.economy.forEach(([k, v]) =>
-                store.economyMap.set(k, v)
+              data.economy.forEach(
+                ([k, v]) =>
+                  store.economyMap.set(
+                    k,
+                    v
+                  )
               );
             }
 
             if (data.dailyData) {
               store.dailyDataMap.clear();
 
-              data.dailyData.forEach(([k, v]) =>
-                store.dailyDataMap.set(k, v)
+              data.dailyData.forEach(
+                ([k, v]) =>
+                  store.dailyDataMap.set(
+                    k,
+                    v
+                  )
               );
             }
 
             if (data.usedCodes) {
               store.usedCodesMap.clear();
 
-              data.usedCodes.forEach(([k, v]) =>
-                store.usedCodesMap.set(
-                  k,
-                  new Set(v)
-                )
+              data.usedCodes.forEach(
+                ([k, v]) =>
+                  store.usedCodesMap.set(
+                    k,
+                    new Set(v)
+                  )
               );
             }
 
             if (data.customCodes) {
               store.customCodesMap.clear();
 
-              data.customCodes.forEach(([k, v]) =>
-                store.customCodesMap.set(k, v)
+              data.customCodes.forEach(
+                ([k, v]) =>
+                  store.customCodesMap.set(
+                    k,
+                    v
+                  )
               );
             }
 
             if (data.leaderboard) {
               store.leaderboardMap.clear();
 
-              data.leaderboard.forEach(([k, v]) =>
-                store.leaderboardMap.set(k, v)
+              data.leaderboard.forEach(
+                ([k, v]) =>
+                  store.leaderboardMap.set(
+                    k,
+                    v
+                  )
               );
             }
 
             if (
-              data.backupChannelId !== undefined
+              data.backupChannelId !==
+              undefined
             ) {
               store.backupChannelId =
                 data.backupChannelId;
@@ -420,7 +601,7 @@ if (commandName === 'tangqua') {
           } catch (e) {
             console.error(e);
 
-                       return await safeRespond(() =>
+            return await safeRespond(() =>
               interaction.reply({
                 content:
                   '❌ File lỗi hoặc không đọc được.',
@@ -430,59 +611,154 @@ if (commandName === 'tangqua') {
           }
         }
 
-        // ---------------- QUẢN LÝ SỐ DƯ ----------------
-        if (commandName === 'quanli') {
+        // ================= QUAN LI =================
+
+        if (
+          commandName === 'quanli'
+        ) {
           if (!isAdmin) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Bạn không có quyền sử dụng lệnh này!',
+                content:
+                  '❌ Bạn không có quyền sử dụng lệnh này!',
                 ephemeral: true
               })
             );
           }
 
-          const target = interaction.options.getUser('target');
-          const action = interaction.options.getString('action');
-          const amount = interaction.options.getInteger('amount');
-          const reason = interaction.options.getString('reason') || 'Không có lý do';
+          const target =
+            interaction.options.getUser(
+              'target'
+            );
 
-          const before = store.economyMap.get(target.id) || 0;
-          let after, actionLabel, deltaText;
+          const action =
+            interaction.options.getString(
+              'action'
+            );
+
+          const amount =
+            interaction.options.getInteger(
+              'amount'
+            );
+
+          const reason =
+            interaction.options.getString(
+              'reason'
+            ) ||
+            'Không có lý do';
+
+          const before =
+            store.economyMap.get(
+              target.id
+            ) || 0;
+
+          let after;
+          let actionLabel;
+          let deltaText;
 
           if (action === 'set') {
             after = amount;
-            actionLabel = 'Đặt số dư thành';
-            deltaText = `${amount.toLocaleString()} Mcoin`;
-          } else if (action === 'add') {
-            after = before + amount;
-            actionLabel = 'Cộng thêm';
-            deltaText = `+${amount.toLocaleString()} Mcoin`;
+            actionLabel =
+              'Đặt số dư thành';
+            deltaText =
+              `${amount.toLocaleString()} Mcoin`;
+
+          } else if (
+            action === 'add'
+          ) {
+            after =
+              before + amount;
+            actionLabel =
+              'Cộng thêm';
+            deltaText =
+              `+${amount.toLocaleString()} Mcoin`;
+
           } else {
-            after = Math.max(0, before - amount);
-            actionLabel = 'Trừ bớt';
-            deltaText = `-${amount.toLocaleString()} Mcoin`;
+            after =
+              Math.max(
+                0,
+                before - amount
+              );
+
+            actionLabel =
+              'Trừ bớt';
+
+            deltaText =
+              `-${amount.toLocaleString()} Mcoin`;
           }
 
-          store.economyMap.set(target.id, after);
+          store.economyMap.set(
+            target.id,
+            after
+          );
 
-          const logEmbed = new EmbedBuilder()
-            .setColor('#00FF00')
-            .setTitle('💰 QUẢN LÝ SỐ DƯ NGƯỜI CHƠI')
-            .addFields(
-              { name: '🛠️ Quản trị viên', value: `${interaction.user.username}`, inline: true },
-              { name: '🎯 Người chơi', value: `${target.username}`, inline: true },
-              { name: '📋 Hành động', value: actionLabel, inline: true },
-              { name: '💵 Thay đổi', value: deltaText, inline: true },
-              { name: '📉 Số dư trước', value: `${before.toLocaleString()} Mcoin`, inline: true },
-              { name: '📈 Số dư sau', value: `${after.toLocaleString()} Mcoin`, inline: true },
-              { name: '📝 Lý do', value: reason, inline: false }
-            )
-            .setFooter({ text: `ID người chơi: ${target.id}` })
-            .setTimestamp();
+          const logEmbed =
+            new EmbedBuilder()
+              .setColor('#00FF00')
+              .setTitle(
+                '💰 QUẢN LÝ SỐ DƯ NGƯỜI CHƠI'
+              )
+              .addFields(
+                {
+                  name:
+                    '🛠️ Quản trị viên',
+                  value:
+                    `${interaction.user.username}`,
+                  inline: true
+                },
+                {
+                  name:
+                    '🎯 Người chơi',
+                  value:
+                    `${target.username}`,
+                  inline: true
+                },
+                {
+                  name:
+                    '📋 Hành động',
+                  value:
+                    actionLabel,
+                  inline: true
+                },
+                {
+                  name:
+                    '💵 Thay đổi',
+                  value:
+                    deltaText,
+                  inline: true
+                },
+                {
+                  name:
+                    '📉 Số dư trước',
+                  value:
+                    `${before.toLocaleString()} Mcoin`,
+                  inline: true
+                },
+                {
+                  name:
+                    '📈 Số dư sau',
+                  value:
+                    `${after.toLocaleString()} Mcoin`,
+                  inline: true
+                },
+                {
+                  name:
+                    '📝 Lý do',
+                  value:
+                    reason,
+                  inline: false
+                }
+              )
+              .setFooter({
+                text:
+                  `ID người chơi: ${target.id}`
+              })
+              .setTimestamp();
 
-          // KHÔNG dùng ephemeral -> để mọi người trong kênh đều thấy log này
           return await safeRespond(() =>
-            interaction.reply({ embeds: [logEmbed] })
+            interaction.reply({
+              embeds: [logEmbed]
+            })
           );
         }
 
@@ -492,13 +768,17 @@ if (commandName === 'tangqua') {
       // =========================================================
       // BUTTONS
       // =========================================================
-      if (interaction.isButton()) {
+
+      if (
+        interaction.isButton()
+      ) {
         const customId =
           interaction.customId;
 
         // =======================================================
         // DAILY
         // =======================================================
+
         if (
           customId.startsWith(
             'claim_daily_'
@@ -574,12 +854,19 @@ if (commandName === 'tangqua') {
         }
 
         // =======================================================
-        // BAU CUA - FIX: Thêm check replied/deferred
+        // BAU CUA
         // =======================================================
-        if (customId.startsWith('bc_')) {
-          // ✅ CHECK TRƯỚC KHI XỬ LÝ
-          if (interaction.replied || interaction.deferred) {
-            console.warn('⚠️ Button BC: Interaction đã được reply rồi');
+
+        if (
+          customId.startsWith('bc_')
+        ) {
+          if (
+            interaction.replied ||
+            interaction.deferred
+          ) {
+            console.warn(
+              '⚠️ Button BC: Interaction đã được reply rồi'
+            );
             return;
           }
 
@@ -648,17 +935,22 @@ if (commandName === 'tangqua') {
         }
 
         // =======================================================
-        // TUNG XU - FIX: Thêm check replied/deferred
+        // TUNG XU
         // =======================================================
+
         if (
           customId ===
             'tx_multi_ngua' ||
           customId ===
             'tx_multi_sap'
         ) {
-          // ✅ CHECK TRƯỚC KHI XỬ LÝ
-          if (interaction.replied || interaction.deferred) {
-            console.warn('⚠️ Button TX: Interaction đã được reply rồi');
+          if (
+            interaction.replied ||
+            interaction.deferred
+          ) {
+            console.warn(
+              '⚠️ Button TX: Interaction đã được reply rồi'
+            );
             return;
           }
 
@@ -730,10 +1022,12 @@ if (commandName === 'tangqua') {
         }
 
         // =======================================================
-        // DOAN BOM JOIN - FIX: Thêm deferUpdate()
+        // DOAN BOM JOIN
         // =======================================================
-        if (customId === 'bom_join') {
-          // ✅ DEFER TRƯỚC KHI UPDATE
+
+        if (
+          customId === 'bom_join'
+        ) {
           await interaction.deferUpdate();
 
           const gameId =
@@ -791,7 +1085,8 @@ if (commandName === 'tangqua') {
               gameData.participants.values()
             )
               .map(
-                name => `• ${name}`
+                name =>
+                  `• ${name}`
               )
               .join('\n');
 
@@ -834,20 +1129,12 @@ if (commandName === 'tangqua') {
           );
         }
 
-        /*
-         * KHÔNG xử lý bom_cell_* ở đây.
-         *
-         * games/doanbom.js đã có collector
-         * riêng cho các nút này.
-         */
-
         // =======================================================
         // MA SOI
         // =======================================================
+
         if (
-          customId.startsWith(
-            'ms_'
-          )
+          customId.startsWith('ms_')
         ) {
           const parts =
             customId.split('_');
@@ -878,9 +1165,11 @@ if (commandName === 'tangqua') {
           const userId =
             interaction.user.id;
 
-          // ---------------- JOIN - FIX: Thêm deferUpdate() ----------------
-          if (action === 'join') {
-            // ✅ DEFER TRƯỚC KHI UPDATE
+          // JOIN
+
+          if (
+            action === 'join'
+          ) {
             await interaction.deferUpdate();
 
             if (
@@ -925,7 +1214,8 @@ if (commandName === 'tangqua') {
                     gameData.participants.values()
                   )
                     .map(
-                      n => `• ${n}`
+                      n =>
+                        `• ${n}`
                     )
                     .join('\n')
                 );
@@ -962,8 +1252,11 @@ if (commandName === 'tangqua') {
               userId
             );
 
-          // ---------------- WOLF ----------------
-          if (action === 'wolf') {
+          // WOLF
+
+          if (
+            action === 'wolf'
+          ) {
             await interaction.deferReply({
               ephemeral: true
             });
@@ -998,8 +1291,11 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- GUARD ----------------
-          if (action === 'guard') {
+          // GUARD
+
+          if (
+            action === 'guard'
+          ) {
             await interaction.deferReply({
               ephemeral: true
             });
@@ -1032,8 +1328,11 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- DOCTOR ----------------
-          if (action === 'doctor') {
+          // DOCTOR
+
+          if (
+            action === 'doctor'
+          ) {
             await interaction.deferReply({
               ephemeral: true
             });
@@ -1066,8 +1365,11 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- SEER ----------------
-          if (action === 'seer') {
+          // SEER
+
+          if (
+            action === 'seer'
+          ) {
             await interaction.deferReply({
               ephemeral: true
             });
@@ -1086,7 +1388,9 @@ if (commandName === 'tangqua') {
               );
             }
 
-            if (gameData.seerActed) {
+            if (
+              gameData.seerActed
+            ) {
               return await safeRespond(() =>
                 interaction.editReply({
                   content:
@@ -1119,7 +1423,8 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- WITCH HEAL ----------------
+          // WITCH HEAL
+
           if (
             action ===
             'witchheal'
@@ -1161,7 +1466,8 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- WITCH POISON MENU ----------------
+          // WITCH POISON MENU
+
           if (
             action ===
             'witchpoisonmenu'
@@ -1206,7 +1512,8 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- WITCH POISON ----------------
+          // WITCH POISON
+
           if (
             action ===
             'witchpoison'
@@ -1266,7 +1573,8 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- WITCH SKIP ----------------
+          // WITCH SKIP
+
           if (
             action ===
             'witchskip'
@@ -1286,8 +1594,11 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- VOTE ----------------
-          if (action === 'vote') {
+          // VOTE
+
+          if (
+            action === 'vote'
+          ) {
             await interaction.deferReply({
               ephemeral: true
             });
@@ -1335,7 +1646,8 @@ if (commandName === 'tangqua') {
             );
           }
 
-          // ---------------- HUNTER ----------------
+          // HUNTER
+
           if (
             action ===
             'hunter'
@@ -1393,85 +1705,269 @@ if (commandName === 'tangqua') {
         // =======================================================
         // CAO NUT - JOIN
         // =======================================================
-        if (customId === 'caonut_join') {
-          if (interaction.replied || interaction.deferred) {
-            console.warn('⚠️ Button Caonut: Interaction đã được reply rồi');
+
+        if (
+          customId === 'caonut_join'
+        ) {
+          if (
+            interaction.replied ||
+            interaction.deferred
+          ) {
+            console.warn(
+              '⚠️ Button Caonut: Interaction đã được reply rồi'
+            );
             return;
           }
 
-          const gameMsgId = interaction.message.id;
-          const gameData = store.activeCaoNutGames.get(gameMsgId);
+          const gameMsgId =
+            interaction.message.id;
+
+          const gameData =
+            store.activeCaoNutGames.get(
+              gameMsgId
+            );
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Ván đã kết thúc!',
+                content:
+                  '❌ Ván Cào Nút này đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const userId = interaction.user.id;
-          const currentBal = store.economyMap.get(userId) || 0;
+          const userId =
+            interaction.user.id;
 
-          const modal = new ModalBuilder()
-            .setCustomId(`modal_cn_bet_${gameMsgId}_${userId}`)
-            .setTitle('Nhập Tiền Cược')
-            .addComponents(
-              new ActionRowBuilder()
-                .addComponents(
-                  new TextInputBuilder()
-                    .setCustomId('cn_bet_input')
-                    .setLabel(`Nhập ${gameData.betAmount.toLocaleString()} Mcoin (Số dư: ${currentBal.toLocaleString()})`)
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder(`Ví dụ: ${gameData.betAmount.toLocaleString()}`)
-                    .setRequired(true)
-                )
+          // ĐÃ THAM GIA
+
+          if (
+            gameData.players.has(
+              userId
+            )
+          ) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  '⚠️ Bạn đã tham gia ván Cào Nút này rồi!',
+                ephemeral: true
+              })
             );
+          }
+
+          // KIỂM TRA SỐ DƯ
+
+          const currentBal =
+            store.economyMap.get(
+              userId
+            ) || 0;
+
+          if (
+            currentBal <
+            gameData.betAmount
+          ) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  `❌ Bạn không đủ số dư!\n\n` +
+                  `💰 Cần: **${gameData.betAmount.toLocaleString()} Mcoin**\n` +
+                  `💵 Số dư hiện tại: **${currentBal.toLocaleString()} Mcoin**`,
+                ephemeral: true
+              })
+            );
+          }
+
+          // TRỪ TIỀN NGAY KHI THAM GIA
+
+          store.economyMap.set(
+            userId,
+            currentBal -
+              gameData.betAmount
+          );
+
+          // THÊM NGƯỜI CHƠI
+
+          gameData.players.set(
+            userId,
+            {
+              username:
+                interaction.user.username,
+
+              hand: []
+            }
+          );
+
+          // DANH SÁCH NGƯỜI CHƠI
+
+          const playerList =
+            Array.from(
+              gameData.players.values()
+            )
+              .map(
+                (player, index) =>
+                  `> 🟢 **${index + 1}.** ${player.username}`
+              )
+              .join('\n');
+
+          // EMBED MỚI
+
+          const updatedEmbed =
+            new EmbedBuilder()
+              .setColor('#FF6B9D')
+              .setTitle(
+                '🃏 CÀO NÚT 3 LÁ'
+              )
+              .setDescription(
+                `💰 **Tiền cược:** ${gameData.betAmount.toLocaleString()} Mcoin\n\n` +
+
+                `👥 **Người tham gia:** **${gameData.players.size} người**\n\n` +
+
+                `${playerList}\n\n` +
+
+                `━━━━━━━━━━━━━━━━━━\n` +
+
+                `🙋 Bấm nút bên dưới để tham gia ván!`
+              )
+              .setFooter({
+                text:
+                  '⏳ Đang chờ người chơi • Tối đa 25 giây'
+              })
+              .setTimestamp();
+
+          const joinRow =
+            new ActionRowBuilder()
+              .addComponents(
+                new ButtonBuilder()
+                  .setCustomId(
+                    'caonut_join'
+                  )
+                  .setLabel(
+                    '🙋 Tham gia'
+                  )
+                  .setStyle(
+                    ButtonStyle.Success
+                  )
+              );
+
+          // CẬP NHẬT EMBED CHO TẤT CẢ
 
           return await safeRespond(() =>
-            interaction.showModal(modal)
+            interaction.update({
+              embeds: [
+                updatedEmbed
+              ],
+              components: [
+                joinRow
+              ]
+            })
           );
         }
 
         // =======================================================
         // CAO NUT - REVEAL CARD
         // =======================================================
-        if (customId.startsWith('caonut_reveal_')) {
-          if (interaction.replied || interaction.deferred) {
-            console.warn('⚠️ Button Reveal: Interaction đã được reply rồi');
+
+        if (
+          customId.startsWith(
+            'caonut_reveal_'
+          )
+        ) {
+          if (
+            interaction.replied ||
+            interaction.deferred
+          ) {
+            console.warn(
+              '⚠️ Button Reveal: Interaction đã được reply rồi'
+            );
             return;
           }
 
-          await interaction.deferUpdate();
+          const parts =
+            customId.split('_');
 
-          const parts = customId.split('_');
-          const gameMsgId = parts[2];
-          const userId = parts[3];
+          const gameMsgId =
+            parts[2];
 
-          const gameData = store.activeCaoNutGames.get(gameMsgId);
-          if (!gameData || !gameData.dmData) return;
+          const userId =
+            parts[3];
 
-          const dmData = gameData.dmData.get(userId);
-          if (!dmData || dmData.revealed) return;
+          // Đảm bảo người khác không thể dùng
+          // nút của người khác
 
-          dmData.revealed = true;
+          if (
+            interaction.user.id !==
+            userId
+          ) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  '❌ Đây không phải lá bài của bạn!',
+                ephemeral: true
+              })
+            );
+          }
 
-          const hand = gameData.handData.get(userId);
-          const dmEmbed = new EmbedBuilder()
-            .setColor('#FF6B9D')
-            .setTitle('🃏 Thẻ của bạn')
-            .setDescription(
-              `Lá 1: **${hand[0].rank}${hand[0].suit}**\n` +
-              `Lá 2: **${hand[1].rank}${hand[1].suit}**\n` +
-              `Lá 3: **${hand[2].rank}${hand[2].suit}** ✨`
+          const gameData =
+            store.activeCaoNutGames.get(
+              gameMsgId
             );
 
-          try {
-            await dmData.dmMsg.edit({ embeds: [dmEmbed], components: [] });
-          } catch (err) {
-            console.error(`Không cập nhật DM cho ${userId}`);
+          if (
+            !gameData ||
+            !gameData.dmData
+          ) {
+            return;
           }
+
+          const dmData =
+            gameData.dmData.get(
+              userId
+            );
+
+          if (
+            !dmData ||
+            dmData.revealed
+          ) {
+            return;
+          }
+
+          const hand =
+            gameData.handData.get(
+              userId
+            );
+
+          if (!hand) {
+            return;
+          }
+
+          dmData.revealed =
+            true;
+
+          const dmEmbed =
+            new EmbedBuilder()
+              .setColor('#FF6B9D')
+              .setTitle(
+                '🃏 THẺ CÀO NÚT CỦA BẠN'
+              )
+              .setDescription(
+                `💳 **Lá 1:** ${hand[0].rank}${hand[0].suit}\n` +
+                `💳 **Lá 2:** ${hand[1].rank}${hand[1].suit}\n` +
+                `💳 **Lá 3:** ${hand[2].rank}${hand[2].suit} ✨`
+              )
+              .setFooter({
+                text:
+                  'Bạn đã mở lá thứ 3'
+              });
+
+          await interaction.update({
+            embeds: [
+              dmEmbed
+            ],
+            components: []
+          });
+
+          return;
         }
 
         return;
@@ -1480,11 +1976,17 @@ if (commandName === 'tangqua') {
       // =========================================================
       // MODALS
       // =========================================================
-      if (interaction.isModalSubmit()) {
+
+      if (
+        interaction.isModalSubmit()
+      ) {
         const customId =
           interaction.customId;
 
-        // ---------------- BAU CUA ----------------
+        // =======================================================
+        // BAU CUA
+        // =======================================================
+
         if (
           customId.startsWith(
             'modal_bc_'
@@ -1522,291 +2024,4 @@ if (commandName === 'tangqua') {
               interaction.fields.getTextInputValue(
                 'bc_bet_input'
               )
-            );
-
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
-              })
-            );
-          }
-
-          const userId =
-            interaction.user.id;
-
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          if (
-            currentBal <
-            betAmount
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Bạn không đủ số dư!'
-              })
-            );
-          }
-
-          store.economyMap.set(
-            userId,
-            currentBal -
-              betAmount
-          );
-
-          if (
-            !gameData.players.has(
-              userId
-            )
-          ) {
-            gameData.players.set(
-              userId,
-              {
-                username:
-                  interaction.user.username,
-                bets: []
-              }
-            );
-          }
-
-          gameData.players
-            .get(userId)
-            .bets.push({
-              choice,
-              bet: betAmount
-            });
-
-          store.addLeaderboardScore(
-            userId,
-            betAmount
-          );
-
-          const totalBetSoFar =
-            gameData.players
-              .get(userId)
-              .bets.reduce(
-                (sum, b) =>
-                  sum + b.bet,
-                0
-              );
-
-          return await safeRespond(() =>
-            interaction.editReply({
-              content:
-                `✅ Đã đặt cược thêm **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!\n` +
-                `(Tổng đã cược trong ván này: **${totalBetSoFar.toLocaleString()} Mcoin**)`
-            })
-          );
-        }
-
-        // ---------------- TUNG XU ----------------
-        if (
-          customId.startsWith(
-            'modal_tx_multi_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
-
-          const parts =
-            customId.split('_');
-
-          const choice =
-            parts[3];
-
-          const gameMsgId =
-            parts[4];
-
-          const gameData =
-            store.activeTungXuGames.get(
-              gameMsgId
-            );
-
-          if (!gameData) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Sòng đã kết thúc!'
-              })
-            );
-          }
-
-          const betAmount =
-            parseInt(
-              interaction.fields.getTextInputValue(
-                'tx_bet_input'
-              )
-            );
-
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
-              })
-            );
-          }
-
-          const userId =
-            interaction.user.id;
-
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          const oldBet =
-            gameData.players.has(
-              userId
-            )
-              ? gameData.players.get(
-                  userId
-                ).bet
-              : 0;
-
-          const netNeeded =
-            betAmount -
-            oldBet;
-
-          if (
-            currentBal <
-            netNeeded
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Không đủ số dư!'
-              })
-            );
-          }
-
-          store.economyMap.set(
-            userId,
-            currentBal -
-              netNeeded
-          );
-
-          gameData.players.set(
-            userId,
-            {
-              username:
-                interaction.user.username,
-              choice,
-              bet: betAmount
-            }
-          );
-
-          if (netNeeded > 0) {
-            store.addLeaderboardScore(
-              userId,
-              netNeeded
-            );
-          }
-
-          return await safeRespond(() =>
-            interaction.editReply({
-              content:
-                `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
-            })
-          );
-        }
-
-        // ---------------- CAO NUT ----------------
-        if (customId.startsWith('modal_cn_bet_')) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
-
-          const parts = customId.split('_');
-          const gameMsgId = parts[3];
-          const userId = parts[4];
-
-          const gameData = store.activeCaoNutGames.get(gameMsgId);
-
-          if (!gameData) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content: '❌ Ván đã kết thúc!'
-              })
-            );
-          }
-
-          const betAmount = parseInt(
-            interaction.fields.getTextInputValue('cn_bet_input')
-          );
-
-          if (isNaN(betAmount) || betAmount <= 0) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content: '❌ Tiền cược không hợp lệ!'
-              })
-            );
-          }
-
-          if (betAmount !== gameData.betAmount) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content: `❌ Tiền cược phải bằng đúng **${gameData.betAmount.toLocaleString()} Mcoin**!`
-              })
-            );
-          }
-
-          const currentBal = store.economyMap.get(userId) || 0;
-
-          if (currentBal < betAmount) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content: '❌ Bạn không đủ số dư!'
-              })
-            );
-          }
-
-          store.economyMap.set(userId, currentBal - betAmount);
-
-          if (!gameData.players.has(userId)) {
-            gameData.players.set(userId, {
-              username: interaction.user.username,
-              hand: []
-            });
-          }
-
-          return await safeRespond(() =>
-            interaction.editReply({
-              content: `✅ Tham gia thành công! Đã cược **${betAmount.toLocaleString()} Mcoin**`
-            })
-          );
-        }
-
-        return;
-      }
-
-    } catch (err) {
-      if (
-        err?.code === 10062 ||
-        err?.code === 40060
-      ) {
-        console.warn(
-          `⚠️ Bỏ qua lỗi interaction ${err.code}`
-        );
-        return;
-      }
-
-      console.error(
-        '❌ Lỗi xử lý interactionCreate:',
-        err
-      );
-    }
-  }
-};
+    ... (Còn 6 KB)
