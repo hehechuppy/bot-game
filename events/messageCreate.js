@@ -14,6 +14,8 @@ const { startMaSoi } = require('../games/masoi');
 
 const { startNoituGame, handleNoituMessage, activeGames } = require('../games/noitu');
 
+const { startCaoNut } = require('../games/caonut');
+
 
 
 module.exports = {
@@ -862,6 +864,14 @@ module.exports = {
 
     if (['masoi','ms'].includes(command)) return startMaSoi(client, message, store);
 
+    if (['caonut','cn'].includes(command)) {
+      const betAmount = parseInt(args[0]);
+      if (isNaN(betAmount) || betAmount <= 0) {
+        return message.reply('❌ Cú pháp: `.caonut <tiền cược>` hay `.cn <tiền cược>`\nVD: `.caonut 10000`');
+      }
+      return startCaoNut(client, message, store, betAmount);
+    }
+
 
 
     // ================= GAME NOITU - NỐI TỪ =================
@@ -945,4 +955,3 @@ module.exports = {
   },
 
 }; 
-
