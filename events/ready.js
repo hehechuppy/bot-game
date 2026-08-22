@@ -1,12 +1,12 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+// events/ready.js
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const store = require('../store');
 
 module.exports = {
   name: 'ready',
   once: true,
   async execute(client) {
-    console.log(`✅ Bot đã đăng nhập thành công: ${client.user.tag}`);
-
+    console.log(`Bot đã đăng nhập thành công: ${client.user.tag}`);
     // --- ĐĂNG KÝ SLASH COMMANDS ---
     const commands = [
       new SlashCommandBuilder()
@@ -18,25 +18,10 @@ module.exports = {
           option.setName('code').setDescription('Tên mã code').setRequired(true)
         )
         .addIntegerOption(option =>
-          option.setName('reward').setDescription('Số Mcoin làm phần thưởng').setRequired(true).setMinValue(1)
+          option.setName('reward').setDescription('Số Mcoin để phần thưởng').setRequired(true).setMinValue(1)
         )
         .addIntegerOption(option =>
           option.setName('duration').setDescription('Thời hạn (phút), 0 = vĩnh viễn').setRequired(false).setMinValue(0)
-        ),
-
-      new SlashCommandBuilder()
-        .setName('tangqua')
-        .setDescription('🎁 Tặng vật phẩm cho người chơi (Admin)')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .setDMPermission(false)
-        .addUserOption(option =>
-          option.setName('user').setDescription('Chọn người nhận quà').setRequired(true)
-        )
-        .addIntegerOption(option =>
-          option.setName('item').setDescription('ID vật phẩm (VD: 6=Lucky Box, 1=X3 Mcoin)').setRequired(true).setMinValue(1)
-        )
-        .addIntegerOption(option =>
-          option.setName('quantity').setDescription('Số lượng').setRequired(true).setMinValue(1)
         ),
 
       new SlashCommandBuilder()
@@ -68,64 +53,84 @@ module.exports = {
 
       new SlashCommandBuilder()
         .setName('quanli')
-        .setDescription('💰 Chỉnh sửa số dư Mcoin của người chơi (Admin)')
+        .setDescription('💰 Quản lý tiền người chơi (Admin)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .setDMPermission(false)
         .addUserOption(option =>
-          option.setName('target').setDescription('Người chơi cần chỉnh').setRequired(true)
+          option.setName('user').setDescription('Chọn người chơi').setRequired(true)
         )
         .addStringOption(option =>
-          option.setName('action').setDescription('Hành động').setRequired(true)
-            .addChoices(
-              { name: 'Đặt số dư thành (set)', value: 'set' },
-              { name: 'Cộng thêm (add)', value: 'add' },
-              { name: 'Trừ bớt (subtract)', value: 'subtract' }
-            )
+          option.setName('amount').setDescription('Số tiền (VD: 50000, +50000, -50000)').setRequired(true).setPlaceholder('50000 hoặc +50000 hoặc -50000')
+        ),
+
+      new SlashCommandBuilder()
+        .setName('tangqua')
+        .setDescription('🎁 Tặng vật phẩm cho người chơi (Admin)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .setDMPermission(false)
+        .addUserOption(option =>
+          option.setName('user').setDescription('Chọn người nhận quà').setRequired(true)
         )
         .addIntegerOption(option =>
-          option.setName('amount').setDescription('Số tiền').setRequired(true).setMinValue(0)
+          option.setName('item').setDescription('ID vật phẩm (VD: 6=Lucky Box, 1=X3 Mcoin)').setRequired(true).setMinValue(1)
         )
-        .addStringOption(option =>
-          option.setName('reason').setDescription('Lý do thay đổi').setRequired(false)
+        .addIntegerOption(option =>
+          option.setName('quantity').setDescription('Số lượng').setRequired(true).setMinValue(1)
         )
     ];
-
     try {
       await client.application.commands.set(commands);
-      console.log('✅ Đã cập nhật Slash Commands toàn cục thành công!');
-    } catch (error) {
-      console.error('❌ Lỗi khi đăng ký Slash Commands:', error);
+      console.log('✅ Đã đăng ký thành công 6 slash commands (Admin)');
+    } catch (err) {
+      console.error('❌ Lỗi đăng ký slash commands:', err);
     }
-
-    // --- KHỞI TẠO TIẾN TRÌNH PERIODIC BACKUP (MỖI 30 PHÚT) ---
+    // --- CÀY XU VOICE: mỗi 30 giây, ai đang ở kênh voice (không phải bot) sẽ nhận random Mcoin ---
+    // Nếu đang có buff X2 Voice, số Mcoin nhận được sẽ nhân đôi.
+    // Đồng thời cộng dồn thời gian voice cho bảng xếp hạng .xhvoice (reset + phát thưởng hàng tuần Thứ 2).
     setInterval(async () => {
-      try {
-        if (!store.backupChannelId) return;
+      client.guilds.cache.forEach(guild => {
+        guild.channels.cache.filter(c => c.isVoiceBased()).forEach(channel => {
+          channel.members.forEach(member => {
+            if (!member.user.bot) {
+              const baseEarned = Math.floor(Math.random() * 4001) + 1000; // random 1000 -> 5000
+              const multiplier = store.getVoiceMultiplier(member.id);
+              const earned = baseEarned * multiplier;
+              store.addTungXu(member.id, earned);
 
-        const channel = await client.channels.fetch(store.backupChannelId).catch(() => null);
-        if (!channel) return;
-
-        const backupData = store.exportData ? store.exportData() : {
-          economy: Array.from(store.economyMap.entries()),
-          dailyData: Array.from(store.dailyDataMap.entries()),
-          usedCodes: Array.from(store.usedCodesMap.entries()).map(([k, v]) => [k, Array.from(v)]),
-          customCodes: Array.from(store.customCodesMap.entries()),
-          leaderboard: Array.from(store.leaderboardMap.entries()),
-          backupChannelId: store.backupChannelId
-        };
-
-        const jsonBuffer = Buffer.from(JSON.stringify(backupData, null, 2), 'utf-8');
-        const attachment = new AttachmentBuilder(jsonBuffer, { name: `backup_${Date.now()}.json` });
-
-        await channel.send({
-          content: `✅ Periodic backup thành công: ${new Date().toISOString()}`,
-          files: [attachment]
+              // Cộng thêm 120 giây vào thời gian voice tuần này
+              store.addVoiceTime(member.id, 120);
+            }
+          });
         });
-      } catch (err) {
-        console.error('❌ Lỗi tiến trình auto backup:', err);
-      }
-    }, 30 * 60 * 1000);
+      });
 
-    console.log('✅ Periodic backup được kích hoạt mỗi 30 phút');
-  }
+      // Kiểm tra xem đã sang tuần mới (Thứ 2 00:00 UTC) chưa -> nếu có, tự động phát thưởng top 1-10 và reset bảng
+      try {
+        const winners = await store.checkAndResetVoiceWeek();
+        if (winners && winners.length > 0) {
+          const desc = winners.map(w => {
+            const hours = Math.floor(w.seconds / 3600);
+            const mins = Math.floor((w.seconds % 3600) / 60);
+            const boxText = w.box > 0 ? ` + 🎁 ${w.box} Lucky Box` : '';
+            return `**#${w.rank}** — <@${w.userId}> (⏱️ ${hours}h${mins}m)\n💰 +${w.mcoin.toLocaleString()} Mcoin${boxText}`;
+          }).join('\n\n');
+
+          const resultEmbed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🏆 KẾT QUẢ BẢNG XẾP HẠNG VOICE TUẦN VỪA QUA')
+            .setDescription(desc)
+            .setFooter({ text: 'Bảng xếp hạng đã được reset cho tuần mới!' })
+            .setTimestamp();
+
+          client.guilds.cache.forEach(guild => {
+            if (guild.systemChannel) {
+              guild.systemChannel.send({ embeds: [resultEmbed] }).catch(() => {});
+            }
+          });
+        }
+      } catch (err) {
+        console.error('❌ Lỗi khi reset/phát thưởng bảng xếp hạng voice:', err);
+      }
+    }, 30000);
+  },
 };
