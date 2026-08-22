@@ -6,6 +6,7 @@ const {
 } = require('discord.js');
 
 const SUITS = ['♠', '♥', '♦', '♣'];
+
 const RANKS = [
   'A', '2', '3', '4', '5', '6', '7',
   '8', '9', '10', 'J', 'Q', 'K'
@@ -13,7 +14,20 @@ const RANKS = [
 
 function getCardValue(rank) {
   if (rank === 'A') return 1;
-  if (rank >= '2' && rank <= '9') return parseInt(rank);
+
+  if (
+    rank === '2' ||
+    rank === '3' ||
+    rank === '4' ||
+    rank === '5' ||
+    rank === '6' ||
+    rank === '7' ||
+    rank === '8' ||
+    rank === '9'
+  ) {
+    return parseInt(rank);
+  }
+
   return 0;
 }
 
@@ -29,43 +43,78 @@ function generateDeck() {
     }
   }
 
-  return deck.sort(() => Math.random() - 0.5);
-}
+  // Fisher-Yates shuffle
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
 
-async function startCaoNut(client, message, store, betAmount) {
-  if (betAmount <= 0) {
-    return message.reply(
-      '❌ Tiền cược phải lớn hơn 0!'
-    );
+    [deck[i], deck[j]] = [
+      deck[j],
+      deck[i]
+    ];
   }
 
-  const caonutEmbed = new EmbedBuilder()
-    .setColor('#FF6B9D')
+  return deck;
+}
+
+function buildGameEmbed(gameData) {
+  const players = Array.from(
+    gameData.players.values()
+  );
+
+  const playerText =
+    players.length > 0
+      ? players
+          .map(
+            (player, index) =>
+              `> **${index + 1}.** ${player.username}`
+          )
+          .join('\n')
+      : '> Chưa có ai tham gia';
+
+  return new EmbedBuilder()
+    .setColor('#FF4F9A')
     .setTitle('🃏 CÀO NÚT 3 LÁ')
     .setDescription(
-      `💰 **Tiền cược:** ${betAmount.toLocaleString()} Mcoin\n\n` +
-      `👥 **Người tham gia:** **0 người**\n` +
-      `> Chưa có ai tham gia\n\n` +
-      `🙋 Bấm nút bên dưới để tham gia ván!`
+      `💰 **Tiền cược:** \`${gameData.betAmount.toLocaleString()} Mcoin\`\n\n` +
+      `👥 **Người tham gia:** **${players.length} người**\n` +
+      `${playerText}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `🙋 **Bấm nút bên dưới để tham gia ván!**\n\n` +
+      `⏳ Thời gian chờ: **25 giây**\n` +
+      `👤 Tối thiểu: **2 người**`
     )
     .setFooter({
-      text: '⏳ Chờ tối đa 25 giây • Tối thiểu 2 người'
-    });
+      text: '🃏 Cào Nút • Ai cao nút hơn sẽ thắng'
+    })
+    .setTimestamp();
+}
 
-  const row = new ActionRowBuilder()
+function buildJoinRow() {
+  return new ActionRowBuilder()
     .addComponents(
       new ButtonBuilder()
         .setCustomId('caonut_join')
         .setLabel('🙋 Tham gia')
         .setStyle(ButtonStyle.Success)
     );
+}
 
-  const gameMsg = await message.reply({
-    embeds: [caonutEmbed],
-    components: [row]
-  });
+async function startCaoNut(
+  client,
+  message,
+  store,
+  betAmount
+) {
+  if (
+    !Number.isInteger(betAmount) ||
+    betAmount <= 0
+  ) {
+    return message.reply(
+      '❌ Tiền cược phải là số nguyên lớn hơn 0!'
+    );
+  }
 
-  const gameData = {
+  const caonutGameData = {
     betAmount,
 
     // userId -> {
@@ -76,13 +125,29 @@ async function startCaoNut(client, message, store, betAmount) {
 
     deck: generateDeck(),
 
-    gameMsg,
-    channel: message.channel
+    gameMsg: null,
+    channel: message.channel,
+
+    started: false,
+    ended: false
   };
+
+  const gameMsg = await message.reply({
+    embeds: [
+      buildGameEmbed(
+        caonutGameData
+      )
+    ],
+    components: [
+      buildJoinRow()
+    ]
+  });
+
+  caonutGameData.gameMsg = gameMsg;
 
   store.activeCaoNutGames.set(
     gameMsg.id,
-    gameData
+    caonutGameData
   );
 
   const collector =
@@ -90,14 +155,25 @@ async function startCaoNut(client, message, store, betAmount) {
       time: 25000
     });
 
-  collector.on('end', async () => {
-    await handleGameStart(
-      client,
-      store,
-      gameMsg.id,
-      gameData
-    );
-  });
+  collector.on(
+    'end',
+    async () => {
+      if (
+        caonutGameData.ended
+      ) {
+        return;
+      }
+
+      caonutGameData.started = true;
+
+      await handleGameStart(
+        client,
+        store,
+        gameMsg.id,
+        caonutGameData
+      );
+    }
+  );
 }
 
 async function handleGameStart(
@@ -106,18 +182,40 @@ async function handleGameStart(
   gameMsgId,
   gameData
 ) {
-  if (gameData.players.size < 2) {
+  if (
+    gameData.players.size < 2
+  ) {
     try {
       await gameData.gameMsg.edit({
         content:
-          '❌ Không đủ người chơi (tối thiểu 2). Ván hủy!',
+          '❌ **VÁN CÀO NÚT ĐÃ HỦY**\nKhông đủ người chơi (tối thiểu 2 người).',
         embeds: [],
         components: []
       });
     } catch (err) {
       console.error(
-        'Lỗi hủy ván:',
+        'Lỗi hủy ván Cào Nút:',
         err
+      );
+    }
+
+    // Trường hợp này không nên còn tiền chưa hoàn trả,
+    // vì tiền đã được trừ khi người chơi bấm tham gia.
+    // Hoàn tiền cho những người đã tham gia.
+    for (
+      const [
+        userId
+      ] of gameData.players
+    ) {
+      const currentBalance =
+        store.economyMap.get(
+          userId
+        ) || 0;
+
+      store.economyMap.set(
+        userId,
+        currentBalance +
+          gameData.betAmount
       );
     }
 
@@ -125,12 +223,10 @@ async function handleGameStart(
       gameMsgId
     );
 
+    gameData.ended = true;
+
     return;
   }
-
-  // ==========================================
-  // PHÁT 3 LÁ CHO MỖI NGƯỜI
-  // ==========================================
 
   const playerIds =
     Array.from(
@@ -141,45 +237,71 @@ async function handleGameStart(
 
   const handData = new Map();
 
-  for (const userId of playerIds) {
+  // ==========================================
+  // PHÁT 3 LÁ
+  // ==========================================
+
+  for (
+    const userId of playerIds
+  ) {
     const hand = [
-      gameData.deck[deckIndex++],
-      gameData.deck[deckIndex++],
-      gameData.deck[deckIndex++]
+      gameData.deck[
+        deckIndex++
+      ],
+      gameData.deck[
+        deckIndex++
+      ],
+      gameData.deck[
+        deckIndex++
+      ]
     ];
 
     handData.set(
       userId,
       hand
     );
+
+    const player =
+      gameData.players.get(
+        userId
+      );
+
+    player.hand = hand;
   }
 
   // ==========================================
-  // GỬI DM RIÊNG CHO TỪNG NGƯỜI
+  // GỬI DM
   // ==========================================
 
   const dmData = new Map();
 
-  for (const userId of playerIds) {
+  for (
+    const userId of playerIds
+  ) {
     try {
       const user =
-        await client.users.fetch(userId);
+        await client.users.fetch(
+          userId
+        );
 
       const hand =
         handData.get(userId);
 
       const dmEmbed =
         new EmbedBuilder()
-          .setColor('#FF6B9D')
-          .setTitle('🃏 THẺ CÀO NÚT CỦA BẠN')
+          .setColor('#FF4F9A')
+          .setTitle(
+            '🃏 THẺ CÀO NÚT CỦA BẠN'
+          )
           .setDescription(
             `💳 **Lá 1:** ${hand[0].rank}${hand[0].suit}\n` +
             `💳 **Lá 2:** ${hand[1].rank}${hand[1].suit}\n` +
             `❓ **Lá 3:** Chưa mở\n\n` +
-            `🔐 Bấm nút bên dưới để mở lá thứ 3.`
+            `🔐 Bạn có thể bấm nút bên dưới để mở lá thứ 3.`
           )
           .setFooter({
-            text: 'Bạn có 10 giây để tự mở lá thứ 3'
+            text:
+              '⏳ Sau 10 giây lá thứ 3 sẽ tự động mở'
           });
 
       const dmRow =
@@ -189,14 +311,22 @@ async function handleGameStart(
               .setCustomId(
                 `caonut_reveal_${gameMsgId}_${userId}`
               )
-              .setLabel('🔓 Mở Lá Thứ 3')
-              .setStyle(ButtonStyle.Primary)
+              .setLabel(
+                '🔓 Mở Lá Thứ 3'
+              )
+              .setStyle(
+                ButtonStyle.Primary
+              )
           );
 
       const dmMsg =
         await user.send({
-          embeds: [dmEmbed],
-          components: [dmRow]
+          embeds: [
+            dmEmbed
+          ],
+          components: [
+            dmRow
+          ]
         });
 
       dmData.set(
@@ -206,14 +336,12 @@ async function handleGameStart(
           dmMsg
         }
       );
-
     } catch (err) {
       console.error(
         `Không gửi DM cho ${userId}:`,
         err
       );
 
-      // Vẫn lưu dữ liệu để game không bị crash
       dmData.set(
         userId,
         {
@@ -225,16 +353,27 @@ async function handleGameStart(
   }
 
   // ==========================================
-  // LƯU DỮ LIỆU VÁN
+  // LƯU DATA
   // ==========================================
 
   const tempGameData = {
-    players: gameData.players,
+    players:
+      gameData.players,
+
     handData,
+
     dmData,
-    betAmount: gameData.betAmount,
-    gameMsg: gameData.gameMsg,
-    channel: gameData.channel
+
+    betAmount:
+      gameData.betAmount,
+
+    gameMsg:
+      gameData.gameMsg,
+
+    channel:
+      gameData.channel,
+
+    ended: false
   };
 
   store.activeCaoNutGames.set(
@@ -246,15 +385,21 @@ async function handleGameStart(
   // CHỜ 10 GIÂY
   // ==========================================
 
-  await new Promise(resolve =>
-    setTimeout(resolve, 10000)
+  await new Promise(
+    resolve =>
+      setTimeout(
+        resolve,
+        10000
+      )
   );
 
   // ==========================================
   // TỰ ĐỘNG MỞ LÁ 3
   // ==========================================
 
-  for (const userId of playerIds) {
+  for (
+    const userId of playerIds
+  ) {
     const userDmData =
       dmData.get(userId);
 
@@ -271,26 +416,31 @@ async function handleGameStart(
 
     const dmEmbed =
       new EmbedBuilder()
-        .setColor('#FF6B9D')
-        .setTitle('🃏 THẺ CÀO NÚT CỦA BẠN')
+        .setColor('#FF4F9A')
+        .setTitle(
+          '🃏 THẺ CÀO NÚT CỦA BẠN'
+        )
         .setDescription(
           `💳 **Lá 1:** ${hand[0].rank}${hand[0].suit}\n` +
           `💳 **Lá 2:** ${hand[1].rank}${hand[1].suit}\n` +
           `💳 **Lá 3:** ${hand[2].rank}${hand[2].suit} ⚡\n\n` +
-          `⏰ Hết thời gian mở thủ công. Lá 3 đã tự động được mở.`
+          `⏰ Hết thời gian. Lá thứ 3 đã được tự động mở.`
         )
         .setFooter({
-          text: 'Đã mở lá thứ 3'
+          text:
+            '🃏 Đã mở đủ 3 lá'
         });
 
     try {
-      userDmData.revealed = true;
+      userDmData.revealed =
+        true;
 
       await userDmData.dmMsg.edit({
-        embeds: [dmEmbed],
+        embeds: [
+          dmEmbed
+        ],
         components: []
       });
-
     } catch (err) {
       console.error(
         `Không cập nhật DM cho ${userId}:`,
@@ -325,56 +475,80 @@ async function calculateResults(
 
   const winners = [];
 
-  // ==========================================
-  // TÍNH NÚT
-  // ==========================================
-
-  for (const [userId, hand] of handData) {
+  for (
+    const [
+      userId,
+      hand
+    ] of handData
+  ) {
     const v1 =
-      getCardValue(hand[0].rank);
+      getCardValue(
+        hand[0].rank
+      );
 
     const v2 =
-      getCardValue(hand[1].rank);
+      getCardValue(
+        hand[1].rank
+      );
 
     const v3 =
-      getCardValue(hand[2].rank);
+      getCardValue(
+        hand[2].rank
+      );
 
     const total =
-      (v1 + v2 + v3) % 10;
+      (
+        v1 +
+        v2 +
+        v3
+      ) % 10;
+
+    const player =
+      gameData.players.get(
+        userId
+      );
 
     results.push({
       userId,
 
       username:
-        gameData.players.get(
-          userId
-        ).username,
+        player
+          ? player.username
+          : 'Người chơi',
 
       hand,
 
       total
     });
 
-    if (total > maxValue) {
-      maxValue = total;
+    if (
+      total > maxValue
+    ) {
+      maxValue =
+        total;
 
       winners.length = 0;
 
-      winners.push(userId);
-
-    } else if (total === maxValue) {
-      winners.push(userId);
+      winners.push(
+        userId
+      );
+    } else if (
+      total === maxValue
+    ) {
+      winners.push(
+        userId
+      );
     }
   }
 
-  // Xếp từ cao xuống thấp
   results.sort(
     (a, b) =>
-      b.total - a.total
+      b.total -
+      a.total
   );
 
   // ==========================================
-  // TÍNH TIỀN
+  // TÍNH POT
   // ==========================================
 
   const totalPot =
@@ -383,14 +557,17 @@ async function calculateResults(
 
   const prizePerWinner =
     Math.floor(
-      totalPot / winners.length
+      totalPot /
+      winners.length
     );
 
   // ==========================================
-  // DAILY DATA
+  // DAILY
   // ==========================================
 
-  for (const result of results) {
+  for (
+    const result of results
+  ) {
     const dailyData =
       store.getDailyData(
         result.userId
@@ -411,12 +588,14 @@ async function calculateResults(
   }
 
   // ==========================================
-  // HIỂN THỊ KẾT QUẢ
+  // SUMMARY
   // ==========================================
 
   const summary = [];
 
-  for (const result of results) {
+  for (
+    const result of results
+  ) {
     const cards =
       `${result.hand[0].rank}${result.hand[0].suit} ` +
       `${result.hand[1].rank}${result.hand[1].suit} ` +
@@ -429,14 +608,17 @@ async function calculateResults(
 
     if (isWinner) {
       summary.push(
-        `🏆 **${result.username}** - Nút: **${result.total}** | ${cards}\n` +
-        `   ➕ +${prizePerWinner.toLocaleString()} Mcoin`
+        `🏆 **${result.username}**\n` +
+        `> 🎯 Nút: **${result.total}**\n` +
+        `> 🃏 ${cards}\n` +
+        `> 💰 **+${prizePerWinner.toLocaleString()} Mcoin**`
       );
-
     } else {
       summary.push(
-        `❌ **${result.username}** - Nút: **${result.total}** | ${cards}\n` +
-        `   ➖ -${gameData.betAmount.toLocaleString()} Mcoin`
+        `❌ **${result.username}**\n` +
+        `> 🎯 Nút: **${result.total}**\n` +
+        `> 🃏 ${cards}\n` +
+        `> 💸 **-${gameData.betAmount.toLocaleString()} Mcoin**`
       );
     }
   }
@@ -445,7 +627,9 @@ async function calculateResults(
   // DM KẾT QUẢ
   // ==========================================
 
-  for (const result of results) {
+  for (
+    const result of results
+  ) {
     try {
       const user =
         await client.users.fetch(
@@ -461,8 +645,8 @@ async function calculateResults(
         new EmbedBuilder()
           .setColor(
             isWinner
-              ? '#00FF00'
-              : '#FF0000'
+              ? '#00FF88'
+              : '#FF4444'
           )
           .setTitle(
             isWinner
@@ -481,13 +665,16 @@ async function calculateResults(
             )
           )
           .setFooter({
-            text: 'Cào Nút 3 Lá'
-          });
+            text:
+              '🃏 Cào Nút 3 Lá'
+          })
+          .setTimestamp();
 
       await user.send({
-        embeds: [dmEmbed]
+        embeds: [
+          dmEmbed
+        ]
       });
-
     } catch (err) {
       console.error(
         `Lỗi gửi DM kết quả cho ${result.userId}:`,
@@ -497,76 +684,79 @@ async function calculateResults(
   }
 
   // ==========================================
-  // CÔNG BỐ CHANNEL
+  // CÔNG BỐ KẾT QUẢ
   // ==========================================
 
   const resEmbed =
     new EmbedBuilder()
       .setColor('#FFD700')
-      .setTitle('🏆 KẾT QUẢ CÀO NÚT 3 LÁ')
+      .setTitle(
+        '🏆 KẾT QUẢ CÀO NÚT 3 LÁ'
+      )
       .setDescription(
-        summary.join('\n\n') ||
+        summary.join(
+          '\n\n'
+        ) ||
         '❌ Không có người chơi'
       )
       .addFields(
         {
-          name: '💰 Pot Tổng',
+          name:
+            '💰 Pot Tổng',
           value:
             `${totalPot.toLocaleString()} Mcoin`,
           inline: true
         },
         {
-          name: '👑 Người Thắng',
+          name:
+            '👑 Người Thắng',
           value:
             `${winners.length} người`,
           inline: true
         },
         {
-          name: '💵 Giải Thưởng/Người',
+          name:
+            '💵 Giải Thưởng/Người',
           value:
             `${prizePerWinner.toLocaleString()} Mcoin`,
           inline: true
         }
       )
       .setFooter({
-        text: 'Ván Cào Nút đã kết thúc'
+        text:
+          '🃏 Ván Cào Nút đã kết thúc'
       })
       .setTimestamp();
 
   try {
     await gameData.channel.send({
-      embeds: [resEmbed]
+      embeds: [
+        resEmbed
+      ]
     });
-
   } catch (err) {
     console.error(
-      'Lỗi gửi kết quả ở channel:',
+      'Lỗi gửi kết quả:',
       err
     );
   }
-
-  // ==========================================
-  // XÓA BUTTON TIN NHẮN GỐC
-  // ==========================================
 
   try {
     await gameData.gameMsg.edit({
       content:
-        '✅ Ván Cào Nút kết thúc! Kết quả đã được công bố.',
+        '✅ **Ván Cào Nút kết thúc!** Kết quả đã được công bố.',
       embeds: [],
       components: []
     });
-
   } catch (err) {
     console.error(
-      'Lỗi cập nhật message gốc:',
+      'Lỗi cập nhật message:',
       err
     );
   }
 
-  // ==========================================
-  // XÓA GAME DATA
-  // ==========================================
+  gameData.ended =
+    true;
 
   store.activeCaoNutGames.delete(
     gameMsgId
