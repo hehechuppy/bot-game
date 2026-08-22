@@ -10,6 +10,7 @@ const activeBauCuaGames = new Map();
 const activeTungXuGames = new Map();
 const activeDoanBomGames = new Map();
 const activeMaSoiGames = new Map();
+const activeCaoNutGames = new Map();
 let backupChannelId = '1492795870012379147';
 
 // ================= VOICE LEADERBOARD (RESET HÀNG TUẦN) =================
@@ -461,6 +462,7 @@ module.exports = {
     activeTungXuGames,
     activeDoanBomGames,
     activeMaSoiGames,
+    activeCaoNutGames,
     SHOP_ITEMS,
     inventoryMap,
     activeBuffsMap,
