@@ -10,7 +10,7 @@ const {
 } = require('discord.js');
 
 const store = require('../store');
-const { activeGames } = require('../games/noitu'); // Fix lỗi reading 'has' cho game nối từ
+const { activeGames } = require('../games/noitu');
 
 function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
   const rows = [];
@@ -508,6 +508,9 @@ module.exports = {
           const userId = interaction.user.id;
           const currentBal = store.economyMap.get(userId) || 0;
 
+          // Giới hạn Label <= 45 ký tự
+          const labelText = `Số dư: ${currentBal.toLocaleString()}`.slice(0, 45);
+
           const modal = new ModalBuilder()
             .setCustomId(`modal_bc_${choice}_${gameMsgId}`)
             .setTitle(`Cược ${choice.toUpperCase()}`)
@@ -515,8 +518,9 @@ module.exports = {
               new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                   .setCustomId('bc_bet_input')
-                  .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`)
+                  .setLabel(labelText)
                   .setStyle(TextInputStyle.Short)
+                  .setPlaceholder('Nhập số tiền cược...')
                   .setRequired(true)
               )
             );
@@ -546,6 +550,9 @@ module.exports = {
           const currentBal = store.economyMap.get(userId) || 0;
           const choice = customId === 'tx_multi_ngua' ? 'ngửa' : 'sấp';
 
+          // Giới hạn Label <= 45 ký tự
+          const labelText = `Số dư: ${currentBal.toLocaleString()}`.slice(0, 45);
+
           const modal = new ModalBuilder()
             .setCustomId(`modal_tx_multi_${choice}_${gameMsgId}`)
             .setTitle(`Chọn ${choice.toUpperCase()}`)
@@ -553,9 +560,9 @@ module.exports = {
               new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                   .setCustomId('tx_bet_input')
-                  .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`)
+                  .setLabel(labelText)
                   .setStyle(TextInputStyle.Short)
-                  .setPlaceholder('VD: 500')
+                  .setPlaceholder('Nhập số tiền cược...')
                   .setRequired(true)
               )
             );
