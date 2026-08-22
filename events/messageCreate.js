@@ -72,7 +72,7 @@ module.exports = {
 
           { name: '🛒 Cửa Hàng', value: '`.shop` • `.mua <id>` • `.sd <id>` • `.box` • `.unbox [số]`', inline: false },
 
-          { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`) • `.noitu` (`.nt`)', inline: false },
+          { name: '🎰 Trò Chơi', value: '`.tungxu` (`.tx`) • `.baucua` (`.bc`) • `.doanbom` (`.bom`) • `.masoi` (`.ms`) • `.noitu` (`.nt`) • `.caonut` (`.cn`)', inline: false },
 
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh` • `.xhvoice`', inline: false },
 
