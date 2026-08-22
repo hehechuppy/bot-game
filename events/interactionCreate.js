@@ -1390,6 +1390,90 @@ if (commandName === 'tangqua') {
           return;
         }
 
+        // =======================================================
+        // CAO NUT - JOIN
+        // =======================================================
+        if (customId === 'caonut_join') {
+          if (interaction.replied || interaction.deferred) {
+            console.warn('⚠️ Button Caonut: Interaction đã được reply rồi');
+            return;
+          }
+
+          const gameMsgId = interaction.message.id;
+          const gameData = store.activeCaoNutGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Ván đã kết thúc!',
+                ephemeral: true
+              })
+            );
+          }
+
+          const userId = interaction.user.id;
+          const currentBal = store.economyMap.get(userId) || 0;
+
+          const modal = new ModalBuilder()
+            .setCustomId(`modal_cn_bet_${gameMsgId}_${userId}`)
+            .setTitle('Nhập Tiền Cược')
+            .addComponents(
+              new ActionRowBuilder()
+                .addComponents(
+                  new TextInputBuilder()
+                    .setCustomId('cn_bet_input')
+                    .setLabel(`Nhập ${gameData.betAmount.toLocaleString()} Mcoin (Số dư: ${currentBal.toLocaleString()})`)
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder(`Ví dụ: ${gameData.betAmount.toLocaleString()}`)
+                    .setRequired(true)
+                )
+            );
+
+          return await safeRespond(() =>
+            interaction.showModal(modal)
+          );
+        }
+
+        // =======================================================
+        // CAO NUT - REVEAL CARD
+        // =======================================================
+        if (customId.startsWith('caonut_reveal_')) {
+          if (interaction.replied || interaction.deferred) {
+            console.warn('⚠️ Button Reveal: Interaction đã được reply rồi');
+            return;
+          }
+
+          await interaction.deferUpdate();
+
+          const parts = customId.split('_');
+          const gameMsgId = parts[2];
+          const userId = parts[3];
+
+          const gameData = store.activeCaoNutGames.get(gameMsgId);
+          if (!gameData || !gameData.dmData) return;
+
+          const dmData = gameData.dmData.get(userId);
+          if (!dmData || dmData.revealed) return;
+
+          dmData.revealed = true;
+
+          const hand = gameData.handData.get(userId);
+          const dmEmbed = new EmbedBuilder()
+            .setColor('#FF6B9D')
+            .setTitle('🃏 Thẻ của bạn')
+            .setDescription(
+              `Lá 1: **${hand[0].rank}${hand[0].suit}**\n` +
+              `Lá 2: **${hand[1].rank}${hand[1].suit}**\n` +
+              `Lá 3: **${hand[2].rank}${hand[2].suit}** ✨`
+            );
+
+          try {
+            await dmData.dmMsg.edit({ embeds: [dmEmbed], components: [] });
+          } catch (err) {
+            console.error(`Không cập nhật DM cho ${userId}`);
+          }
+        }
+
         return;
       }
 
@@ -1635,6 +1719,72 @@ if (commandName === 'tangqua') {
             interaction.editReply({
               content:
                 `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
+            })
+          );
+        }
+
+        // ---------------- CAO NUT ----------------
+        if (customId.startsWith('modal_cn_bet_')) {
+          await interaction.deferReply({
+            ephemeral: true
+          });
+
+          const parts = customId.split('_');
+          const gameMsgId = parts[3];
+          const userId = parts[4];
+
+          const gameData = store.activeCaoNutGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Ván đã kết thúc!'
+              })
+            );
+          }
+
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('cn_bet_input')
+          );
+
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Tiền cược không hợp lệ!'
+              })
+            );
+          }
+
+          if (betAmount !== gameData.betAmount) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: `❌ Tiền cược phải bằng đúng **${gameData.betAmount.toLocaleString()} Mcoin**!`
+              })
+            );
+          }
+
+          const currentBal = store.economyMap.get(userId) || 0;
+
+          if (currentBal < betAmount) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Bạn không đủ số dư!'
+              })
+            );
+          }
+
+          store.economyMap.set(userId, currentBal - betAmount);
+
+          if (!gameData.players.has(userId)) {
+            gameData.players.set(userId, {
+              username: interaction.user.username,
+              hand: []
+            });
+          }
+
+          return await safeRespond(() =>
+            interaction.editReply({
+              content: `✅ Tham gia thành công! Đã cược **${betAmount.toLocaleString()} Mcoin**`
             })
           );
         }
