@@ -6,9 +6,9 @@ const usedCodesMap = new Map();
 
 const customCodesMap = new Map([
 
-    ['tanthu', { reward: 1000, expiresAt: null }],
+    ['tanthu', { reward: 100000, expiresAt: null }],
 
-    ['shadowglade', { reward: 1000, expiresAt: null }]
+    ['shadowglade', { reward: 100000, expiresAt: null }]
 
 ]);
 
@@ -21,6 +21,8 @@ const activeTungXuGames = new Map();
 const activeDoanBomGames = new Map();
 
 const activeMaSoiGames = new Map();
+
+const activeCaoNutGames = new Map();
 
 let backupChannelId = '1492795870012379147';
 
@@ -922,6 +924,8 @@ module.exports = {
 
     activeMaSoiGames,
 
+    activeCaoNutGames,
+
     SHOP_ITEMS,
 
     inventoryMap,
@@ -991,4 +995,3 @@ module.exports = {
     voiceWeekStart
 
 }; 
-
