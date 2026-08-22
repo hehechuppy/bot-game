@@ -14,16 +14,15 @@ const VOTE_TIME = 20000;
 const WIN_REWARD = 50000;
 
 const ROLE_META = {
-  soi:     { label: 'Sói 🐺', faction: 'soi' },
-  danlang: { label: 'Dân Làng 🧑‍🌾', faction: 'dan' },
-  tientri: { label: 'Tiên Tri 🔮', faction: 'dan' },
-  bacsi:   { label: 'Bác Sĩ 💊', faction: 'dan' },
-  thosan:  { label: 'Thợ Săn 🏹', faction: 'dan' },
-  phuthuy: { label: 'Phù Thủy 🧙', faction: 'dan' },
-  baove:   { label: 'Bảo Vệ 🛡️', faction: 'dan' }
+  soi:     { label: 'Sói 🐺', faction: 'soi', color: '#8B0000', icon: 'https://cdn-icons-png.flaticon.com/512/3504/3504313.png' },
+  danlang: { label: 'Dân Làng 🧑‍🌾', faction: 'dan', color: '#2ECC71', icon: 'https://cdn-icons-png.flaticon.com/512/1995/1995515.png' },
+  tientri: { label: 'Tiên Tri 🔮', faction: 'dan', color: '#9B59B6', icon: 'https://cdn-icons-png.flaticon.com/512/2097/2097276.png' },
+  bacsi:   { label: 'Bác Sĩ 💊', faction: 'dan', color: '#2ECC71', icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966327.png' },
+  thosan:  { label: 'Thợ Săn 🏹', faction: 'dan', color: '#E67E22', icon: 'https://cdn-icons-png.flaticon.com/512/3663/3663335.png' },
+  phuthuy: { label: 'Phù Thủy 🧙', faction: 'dan', color: '#8E44AD', icon: 'https://cdn-icons-png.flaticon.com/512/1033/1033022.png' },
+  baove:   { label: 'Bảo Vệ 🛡️', faction: 'dan', color: '#3498DB', icon: 'https://cdn-icons-png.flaticon.com/512/1067/1067357.png' }
 };
 
-// Vai trò phụ được ưu tiên gán theo thứ tự này, tự dừng khi hết người
 const SPECIAL_ROLE_PRIORITY = ['tientri', 'bacsi', 'thosan', 'phuthuy', 'baove'];
 
 function assignRoles(participantIds) {
@@ -59,7 +58,6 @@ function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
   return rows;
 }
 
-// Gửi DM cho 1 người chơi, nếu thất bại (DM tắt) thì báo công khai trong kênh để họ biết mà bật lên
 async function sendDM(client, userId, payload, fallbackChannel, username) {
   try {
     const user = await client.users.fetch(userId);
@@ -76,13 +74,21 @@ async function sendDM(client, userId, payload, fallbackChannel, username) {
 async function startMaSoi(client, message, store) {
   const joinEmbed = new EmbedBuilder()
     .setColor('#8B0000')
-    .setTitle('🐺 GAME MA SÓI 🌕')
-    .setDescription(`Bấm nút bên dưới để tham gia! Cần tối thiểu ${MIN_PLAYERS} người.\n\n👥 Đã tham gia: **0** người\nChưa có ai tham gia`);
+    .setTitle('🐺 SÒNG MA SÓI — CỬA NGHỈ MỜ ẢO 🌕')
+    .setDescription(
+      `*Đêm buông xuống trên ngôi làng mù sương... Thảm họa sắp xảy ra!*\n\n` +
+      `📌 **Điều kiện:** Cần tối thiểu **${MIN_PLAYERS} người chơi**.\n` +
+      `⏰ **Thời gian chờ:** <t:${Math.floor((Date.now() + JOIN_TIME) / 1000)}:R>\n\n` +
+      `👥 **DANH SÁCH THAM GIA (0 người):**\n*Chưa có ai tham gia*`
+    )
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3504/3504313.png')
+    .setFooter({ text: 'Bấm nút bên dưới để ghi danh tham gia trò chơi!' })
+    .setTimestamp();
 
   const gameMsg = await message.reply({
     embeds: [joinEmbed],
     components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ms_join_pending').setLabel('🙋 Tham gia').setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId('ms_join_pending').setLabel('🙋 Tham Gia Game').setStyle(ButtonStyle.Success)
     )]
   });
 
@@ -108,11 +114,9 @@ async function startMaSoi(client, message, store) {
     hunterRevengeTarget: null
   });
 
-  // Đây là lần EDIT duy nhất trong cả game - bắt buộc về mặt kỹ thuật vì lúc gửi tin nhắn
-  // chưa thể biết trước ID của chính nó để gắn vào customId của nút.
   await gameMsg.edit({
     components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`ms_join_${gameMsg.id}`).setLabel('🙋 Tham gia').setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId(`ms_join_${gameMsg.id}`).setLabel('🙋 Tham Gia Game').setStyle(ButtonStyle.Success)
     )]
   });
 
@@ -126,25 +130,37 @@ async function startMaSoi(client, message, store) {
 
   if (gameData.participants.size < MIN_PLAYERS) {
     store.activeMaSoiGames.delete(gameMsg.id);
-    return gameMsg.channel.send(`❌ Không đủ người chơi (cần tối thiểu ${MIN_PLAYERS} người), đã hủy game.`);
+    const cancelEmbed = new EmbedBuilder()
+      .setColor('#7F8C8D')
+      .setTitle('🐺 SÒNG MA SÓI ĐÃ HỦY')
+      .setDescription(`❌ Không đủ người chơi (Cần tối thiểu **${MIN_PLAYERS} người**). Sòng đã bị dừng.`);
+    return gameMsg.channel.send({ embeds: [cancelEmbed] });
   }
 
   gameData.roles = assignRoles([...gameData.participants.keys()]);
   gameData.alive = new Set(gameData.participants.keys());
   gameData.phase = 'night';
 
-  // Gửi vai trò riêng cho từng người qua DM
   for (const [uid, role] of gameData.roles.entries()) {
-    await sendDM(
-      client, uid,
-      `🐺 **GAME MA SÓI** - Vai trò của bạn là: **${ROLE_META[role].label}**\nMọi hành động ban đêm (nếu có) sẽ được bot nhắn riêng cho bạn ngay tại đây, hãy để ý!`,
-      gameMsg.channel, gameData.participants.get(uid)
-    );
+    const rMeta = ROLE_META[role];
+    const roleDmEmbed = new EmbedBuilder()
+      .setColor(rMeta.color)
+      .setTitle(`🎭 VAI TRÒ CỦA BẠN: ${rMeta.label}`)
+      .setThumbnail(rMeta.icon)
+      .setDescription(
+        `> **Phe:** ${rMeta.faction === 'soi' ? '🐺 MA SÓI' : '🧑‍🌾 DÂN LÀNG'}\n` +
+        `Mọi hành động ban đêm (nếu có) sẽ được bot gửi riêng cho bạn tại đây. Hãy sẵn sàng!`
+      );
+    await sendDM(client, uid, { embeds: [roleDmEmbed] }, gameMsg.channel, gameData.participants.get(uid));
   }
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle('🐺 GAME MA SÓI - BẮT ĐẦU!').setDescription('Vai trò đã được gửi riêng qua tin nhắn (DM) cho từng người! Đêm đầu tiên bắt đầu...')]
-  });
+  const startEmbed = new EmbedBuilder()
+    .setColor('#8B0000')
+    .setTitle('🌕 GAME MA SÓI - CHÍNH THỨC BẮT ĐẦU!')
+    .setDescription('📜 **Vai trò đã được gửi bí mật qua tin nhắn riêng (DM)!**\n*Đêm đầu tiên chuẩn bị bắt đầu... Mọi người nhắm mắt lại!*')
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/1808/1808386.png');
+
+  await gameMsg.channel.send({ embeds: [startEmbed] });
 
   await runGameLoop(gameMsg, store, client);
 }
@@ -188,9 +204,15 @@ async function runGameLoop(gameMsg, store, client) {
 
 async function nightAnnounce(gameMsg, store) {
   const gameData = store.activeMaSoiGames.get(gameMsg.id);
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#000033').setTitle(`🌙 ĐÊM ${gameData.round} BẮT ĐẦU`).setDescription('Trời tối dần... mọi người nhắm mắt lại... (những ai có vai trò đặc biệt hãy chú ý tin nhắn riêng)')]
-  });
+  const embed = new EmbedBuilder()
+    .setColor('#1A1A2E')
+    .setTitle(`🌙 ĐÊM TỐI THỨ ${gameData.round} BẮT ĐẦU`)
+    .setDescription(
+      `*Màn đêm đen đặc bao phủ toàn bộ dân làng...*\n` +
+      `🔮 Những người mang vai trò đặc biệt, hãy kiểm tra tin nhắn riêng (DM) để thực hiện nhiệm vụ!`
+    )
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/1808/1808386.png');
+  await gameMsg.channel.send({ embeds: [embed] });
   await new Promise(resolve => setTimeout(resolve, 3000));
 }
 
@@ -200,17 +222,20 @@ async function wolfPhase(gameMsg, store, client) {
   gameData.wolfVictim = null;
   if (aliveWolves.length === 0) return;
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#8B0000').setTitle(`🐺 ĐÊM ${gameData.round} - SÓI ĐANG HÀNH ĐỘNG`).setDescription('Sói đang bí mật chọn nạn nhân qua tin nhắn riêng... vui lòng đợi.')]
-  });
+  const announceEmbed = new EmbedBuilder()
+    .setColor('#8B0000')
+    .setTitle(`🐺 ĐÊM ${gameData.round} — SÓI ĐANG ĐI SĂN`)
+    .setDescription(`*Đàn Sói đang bàn bạc bí mật để chọn con mồi...*\n⏱️ **Thời gian chờ:** <t:${Math.floor((Date.now() + WOLF_TIME) / 1000)}:R>`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3504/3504313.png');
+  await gameMsg.channel.send({ embeds: [announceEmbed] });
 
   const embed = new EmbedBuilder()
     .setColor('#8B0000')
-    .setTitle(`🐺 ĐÊM ${gameData.round} - CHỌN NẠN NHÂN`)
-    .setDescription(`Bạn có ${WOLF_TIME / 1000} giây để chọn 1 người sẽ bị tấn công đêm nay (không thể chọn chính mình).`);
+    .setTitle(`🐺 ĐÊM ${gameData.round} — CHỌN NẠN NHÂN TRONG MÊM`)
+    .setDescription(`Hãy chọn 1 người để cắn xé đêm nay! (Không thể tự chọn bản thân)`);
 
   for (const wolfId of aliveWolves) {
-    const targets = [...gameData.alive].filter(uid => uid !== wolfId); // Sói không thể tự giết chính mình
+    const targets = [...gameData.alive].filter(uid => uid !== wolfId);
     const rows = buildPlayerButtons('ms_wolf', gameMsg.id, gameData, targets);
     await sendDM(client, wolfId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(wolfId));
   }
@@ -237,14 +262,17 @@ async function guardPhase(gameMsg, store, client) {
   const targets = [...gameData.alive].filter(uid => uid !== guardId && uid !== gameData.prevGuardTarget);
   if (targets.length === 0) return;
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#4444FF').setTitle(`🛡️ ĐÊM ${gameData.round} - BẢO VỆ ĐANG HÀNH ĐỘNG`).setDescription('Bảo Vệ đang chọn người để bảo vệ qua tin nhắn riêng... vui lòng đợi.')]
-  });
+  const announceEmbed = new EmbedBuilder()
+    .setColor('#2980B9')
+    .setTitle(`🛡️ ĐÊM ${gameData.round} — BẢO VỆ ĐANG HÀNH ĐỘNG`)
+    .setDescription(`*Bảo Vệ đang đi tuần qua các ngôi nhà...*\n⏱️ **Thời gian chờ:** <t:${Math.floor((Date.now() + GUARD_TIME) / 1000)}:R>`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/1067/1067357.png');
+  await gameMsg.channel.send({ embeds: [announceEmbed] });
 
   const embed = new EmbedBuilder()
-    .setColor('#4444FF')
-    .setTitle(`🛡️ ĐÊM ${gameData.round} - CHỌN NGƯỜI BẢO VỆ`)
-    .setDescription(`Không thể chọn trùng người đêm trước. Bạn có ${GUARD_TIME / 1000} giây.`);
+    .setColor('#2980B9')
+    .setTitle(`🛡️ ĐÊM ${gameData.round} — CHỌN NGƯỜI BẢO VỆ`)
+    .setDescription(`Chọn 1 người để bảo vệ khỏi Sói đêm nay (Không được chọn trùng mục tiêu đêm trước).`);
   const rows = buildPlayerButtons('ms_guard', gameMsg.id, gameData, targets);
   await sendDM(client, guardId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(guardId));
 
@@ -261,15 +289,18 @@ async function doctorPhase(gameMsg, store, client) {
   gameData.doctorTarget = null;
   if (!doctorId) return;
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#22CC22').setTitle(`💊 ĐÊM ${gameData.round} - BÁC SĨ ĐANG HÀNH ĐỘNG`).setDescription('Bác Sĩ đang chọn người để cứu qua tin nhắn riêng... vui lòng đợi.')]
-  });
+  const announceEmbed = new EmbedBuilder()
+    .setColor('#2ECC71')
+    .setTitle(`💊 ĐÊM ${gameData.round} — BÁC SĨ ĐANG HÀNH ĐỘNG`)
+    .setDescription(`*Bác Sĩ đang chuẩn bị dược phẩm chữa trị...*\n⏱️ **Thời gian chờ:** <t:${Math.floor((Date.now() + DOCTOR_TIME) / 1000)}:R>`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/2966/2966327.png');
+  await gameMsg.channel.send({ embeds: [announceEmbed] });
 
   const targets = [...gameData.alive];
   const embed = new EmbedBuilder()
-    .setColor('#22CC22')
-    .setTitle(`💊 ĐÊM ${gameData.round} - CHỌN NGƯỜI CỨU`)
-    .setDescription(`Bạn có thể tự cứu mình. Có ${DOCTOR_TIME / 1000} giây.`);
+    .setColor('#2ECC71')
+    .setTitle(`💊 ĐÊM ${gameData.round} — CHỌN NGƯỜI CỨU MẠNG`)
+    .setDescription(`Chọn 1 người chơi để chữa trị đêm nay (Có thể tự chữa cho mình).`);
   const rows = buildPlayerButtons('ms_doctor', gameMsg.id, gameData, targets);
   await sendDM(client, doctorId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(doctorId));
 
@@ -285,14 +316,17 @@ async function seerPhase(gameMsg, store, client) {
   const targets = [...gameData.alive].filter(uid => uid !== seerId);
   if (targets.length === 0) return;
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#CC66FF').setTitle(`🔮 ĐÊM ${gameData.round} - TIÊN TRI ĐANG HÀNH ĐỘNG`).setDescription('Tiên Tri đang soi vai trò qua tin nhắn riêng... vui lòng đợi.')]
-  });
+  const announceEmbed = new EmbedBuilder()
+    .setColor('#8E44AD')
+    .setTitle(`🔮 ĐÊM ${gameData.round} — TIÊN TRI ĐANG HÀNH ĐỘNG`)
+    .setDescription(`*Tiên Tri đang nhìn vào quả cầu pha lê soi chiếu sự thật...*\n⏱️ **Thời gian chờ:** <t:${Math.floor((Date.now() + SEER_TIME) / 1000)}:R>`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/2097/2097276.png');
+  await gameMsg.channel.send({ embeds: [announceEmbed] });
 
   const embed = new EmbedBuilder()
-    .setColor('#CC66FF')
-    .setTitle(`🔮 ĐÊM ${gameData.round} - SOI VAI TRÒ`)
-    .setDescription(`Chọn 1 người để xem họ có phải Sói không. Có ${SEER_TIME / 1000} giây.`);
+    .setColor('#8E44AD')
+    .setTitle(`🔮 ĐÊM ${gameData.round} — SOI VAI TRÒ`)
+    .setDescription(`Chọn 1 người chơi để soi xem họ có phải là Ma Sói hay không!`);
   const rows = buildPlayerButtons('ms_seer', gameMsg.id, gameData, targets);
   await sendDM(client, seerId, { embeds: [embed], components: rows }, gameMsg.channel, gameData.participants.get(seerId));
 
@@ -306,19 +340,22 @@ async function witchPhase(gameMsg, store, client) {
   if (!witchId) return;
   if (gameData.witchHealUsed && gameData.witchPoisonUsed) return;
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#9933CC').setTitle(`🧙 ĐÊM ${gameData.round} - PHÙ THỦY ĐANG HÀNH ĐỘNG`).setDescription('Phù Thủy đang cân nhắc qua tin nhắn riêng... vui lòng đợi.')]
-  });
+  const announceEmbed = new EmbedBuilder()
+    .setColor('#9B59B6')
+    .setTitle(`🧙 ĐÊM ${gameData.round} — PHÙ THỦY ĐANG HÀNH ĐỘNG`)
+    .setDescription(`*Phù Thủy đang cân nhắc hai bình thuốc huyền bí...*\n⏱️ **Thời gian chờ:** <t:${Math.floor((Date.now() + WITCH_TIME) / 1000)}:R>`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/1033/1033022.png');
+  await gameMsg.channel.send({ embeds: [announceEmbed] });
 
   const victimName = gameData.wolfVictim ? gameData.participants.get(gameData.wolfVictim) : 'Không ai';
   const menuEmbed = new EmbedBuilder()
-    .setColor('#9933CC')
-    .setTitle('🧙 HÀNH ĐỘNG CỦA PHÙ THỦY')
-    .setDescription(`Sói đã chọn giết: **${victimName}**\nBạn có ${WITCH_TIME / 1000} giây để quyết định.`);
+    .setColor('#9B59B6')
+    .setTitle('🧙 QUYẾT ĐỊNH CỦA PHÙ THỦY')
+    .setDescription(`🩸 Sói đã chọn tấn công: **${victimName}**\n\nHãy quyết định dùng Thuốc Cứu hay Thuốc Độc đêm nay.`);
   const menuRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`ms_witchheal_${gameMsg.id}`).setLabel('💚 Cứu nạn nhân').setStyle(ButtonStyle.Success).setDisabled(gameData.witchHealUsed || !gameData.wolfVictim),
-    new ButtonBuilder().setCustomId(`ms_witchpoisonmenu_${gameMsg.id}`).setLabel('☠️ Dùng thuốc độc').setStyle(ButtonStyle.Danger).setDisabled(gameData.witchPoisonUsed),
-    new ButtonBuilder().setCustomId(`ms_witchskip_${gameMsg.id}`).setLabel('➡️ Bỏ qua').setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId(`ms_witchheal_${gameMsg.id}`).setLabel('💚 Cứu Nạn Nhân').setStyle(ButtonStyle.Success).setDisabled(gameData.witchHealUsed || !gameData.wolfVictim),
+    new ButtonBuilder().setCustomId(`ms_witchpoisonmenu_${gameMsg.id}`).setLabel('☠️ Độc Sát 1 Người').setStyle(ButtonStyle.Danger).setDisabled(gameData.witchPoisonUsed),
+    new ButtonBuilder().setCustomId(`ms_witchskip_${gameMsg.id}`).setLabel('➡️ Bỏ Qua Đêm Nay').setStyle(ButtonStyle.Secondary)
   );
   await sendDM(client, witchId, { embeds: [menuEmbed], components: [menuRow] }, gameMsg.channel, gameData.participants.get(witchId));
 
@@ -348,15 +385,20 @@ async function resolveNight(gameMsg, store) {
 
   let desc;
   if (died.length === 0) {
-    desc = '☀️ Trời sáng rồi... may mắn thay, đêm qua không có ai thiệt mạng!';
+    desc = '🕊️ **Một đêm hoàn toàn bình yên! Không có ai bị thương hay tử vong.**';
   } else {
-    desc = '☀️ Trời sáng rồi... đêm qua đã có người ra đi:\n' +
-      died.map(id => `☠️ **${gameData.participants.get(id)}** (${ROLE_META[gameData.roles.get(id)].label})`).join('\n');
+    desc = '☠️ **Đêm qua là một đêm đẫm máu... Những nạn nhân sau đây đã ra đi:**\n\n' +
+      died.map(id => `• **${gameData.participants.get(id)}** — Vai trò: **${ROLE_META[gameData.roles.get(id)].label}**`).join('\n');
   }
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#FFAA00').setTitle(`🌅 KẾT QUẢ ĐÊM ${gameData.round}`).setDescription(desc)]
-  });
+  const resEmbed = new EmbedBuilder()
+    .setColor(died.length === 0 ? '#F1C40F' : '#E74C3C')
+    .setTitle(`🌅 KẾT QUẢ ĐÊM THỨ ${gameData.round}`)
+    .setDescription(desc)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/869/869869.png')
+    .setTimestamp();
+
+  await gameMsg.channel.send({ embeds: [resEmbed] });
 
   return died;
 }
@@ -372,8 +414,17 @@ async function handleDeathTriggers(gameMsg, store, deadId) {
   gameData.pendingHunterId = deadId;
   gameData.hunterRevengeTarget = null;
 
+  const hunterEmbed = new EmbedBuilder()
+    .setColor('#E67E22')
+    .setTitle('🏹 PHÁT SÚNG BẢN NĂNG CỦA THỢ SĂN!')
+    .setDescription(
+      `🔥 **${gameData.participants.get(deadId)}** chính là **Thợ Săn**!\n` +
+      `Trước khi trút hơi thở cuối cùng, Thợ Săn có **${HUNTER_TIME / 1000} giây** để bắn hạ 1 kẻ thù!`
+    )
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3663/3663335.png');
+
   const huntMsg = await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#FF6600').setTitle('🏹 THỢ SĂN TRẢ THÙ!').setDescription(`**${gameData.participants.get(deadId)}** là Thợ Săn! Có ${HUNTER_TIME / 1000} giây để bắn hạ 1 người trước khi ngã xuống.`)],
+    embeds: [hunterEmbed],
     components: buildPlayerButtons('ms_hunter', gameMsg.id, gameData, targets)
   });
 
@@ -388,9 +439,11 @@ async function handleDeathTriggers(gameMsg, store, deadId) {
 
   if (revengeTarget && gameData.alive.has(revengeTarget)) {
     gameData.alive.delete(revengeTarget);
-    await gameMsg.channel.send({
-      embeds: [new EmbedBuilder().setColor('#FF0000').setTitle('🏹 PHÁT SÚNG CUỐI CÙNG').setDescription(`💥 **${gameData.participants.get(revengeTarget)}** đã bị Thợ Săn bắn hạ!`)]
-    });
+    const killEmbed = new EmbedBuilder()
+      .setColor('#C0392B')
+      .setTitle('💥 PHÁT SÚNG KẾT LIỄU!')
+      .setDescription(`🏹 Thợ Săn đã bắn chết **${gameData.participants.get(revengeTarget)}** (${ROLE_META[gameData.roles.get(revengeTarget)].label})!`);
+    await gameMsg.channel.send({ embeds: [killEmbed] });
     await handleDeathTriggers(gameMsg, store, revengeTarget);
   }
 }
@@ -413,14 +466,19 @@ async function checkWinAndAnnounce(gameMsg, store) {
 
   const roleReveal = [...gameData.participants.entries()].map(([uid, name]) => {
     const role = gameData.roles.get(uid);
-    const status = gameData.alive.has(uid) ? '🟢 Sống' : '⚫ Đã chết';
-    return `• **${name}** - ${ROLE_META[role].label} (${status})`;
+    const status = gameData.alive.has(uid) ? '🟢 **Sống**' : '💀 **Đã Chết**';
+    return `• **${name}** — ${ROLE_META[role].label} (${status})`;
   }).join('\n');
 
   const winEmbed = new EmbedBuilder()
-    .setColor(winningFaction === 'soi' ? '#8B0000' : '#22CC22')
-    .setTitle(winningFaction === 'soi' ? '🐺 PHE SÓI CHIẾN THẮNG!' : '🧑‍🌾 PHE DÂN LÀNG CHIẾN THẮNG!')
-    .setDescription(`Mỗi người thắng cuộc nhận **+${WIN_REWARD.toLocaleString()} Mcoin**!\n\n📋 **Vai trò của mọi người:**\n${roleReveal}`);
+    .setColor(winningFaction === 'soi' ? '#8B0000' : '#2ECC71')
+    .setTitle(winningFaction === 'soi' ? '🏆 PHE MA SÓI THẮNG TOÀN DIỆN! 🐺' : '🏆 PHE DÂN LÀNG CHIẾN THẮNG RỰC RỠ! 🧑‍🌾')
+    .setDescription(
+      `🎉 Mỗi người thắng cuộc nhận thưởng: **+${WIN_REWARD.toLocaleString()} Mcoin**!\n\n` +
+      `📜 **BẢNG VÀNG VAI TRÒ TOÀN BỘ NGƯỜI CHƠI:**\n${roleReveal}`
+    )
+    .setThumbnail(winningFaction === 'soi' ? 'https://cdn-icons-png.flaticon.com/512/3504/3504313.png' : 'https://cdn-icons-png.flaticon.com/512/1995/1995515.png')
+    .setTimestamp();
 
   await gameMsg.channel.send({ embeds: [winEmbed] });
   store.activeMaSoiGames.delete(gameMsg.id);
@@ -428,9 +486,13 @@ async function checkWinAndAnnounce(gameMsg, store) {
 }
 
 async function dayDiscussion(gameMsg, store) {
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#FFCC00').setTitle('💬 THẢO LUẬN').setDescription(`Mọi người có ${DISCUSSION_TIME / 1000} giây để thảo luận trước khi vote treo cổ!`)]
-  });
+  const discussEmbed = new EmbedBuilder()
+    .setColor('#F39C12')
+    .setTitle('💬 BAN NGÀY — THẢO LUẬN TÌM SÓI')
+    .setDescription(`Mọi người có **${DISCUSSION_TIME / 1000} giây** (<t:${Math.floor((Date.now() + DISCUSSION_TIME) / 1000)}:R>) để trao đổi, tranh luận và suy đoán ai là Ma Sói!`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/1256/1256650.png');
+
+  await gameMsg.channel.send({ embeds: [discussEmbed] });
   await new Promise(resolve => setTimeout(resolve, DISCUSSION_TIME));
 }
 
@@ -439,8 +501,14 @@ async function votePhase(gameMsg, store) {
   gameData.votes = new Map();
 
   const targets = [...gameData.alive];
+  const voteEmbed = new EmbedBuilder()
+    .setColor('#C0392B')
+    .setTitle('⚖️ BAN NGÀY — BỎ PHIẾU TREO CỔ')
+    .setDescription(`Tất cả người chơi còn sống hãy bấm nút bầu chọn 1 người nghi vấn nhất!\n⏱️ **Thời gian cược phiếu:** <t:${Math.floor((Date.now() + VOTE_TIME) / 1000)}:R>`)
+    .setFooter({ text: 'Mỗi người chỉ có 1 lượt vote duy nhất!' });
+
   const voteMsg = await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ BỎ PHIẾU TREO CỔ').setDescription(`Mọi người còn sống hãy vote 1 người để treo cổ! Có ${VOTE_TIME / 1000} giây.`)],
+    embeds: [voteEmbed],
     components: buildPlayerButtons('ms_vote', gameMsg.id, gameData, targets)
   });
 
@@ -459,18 +527,24 @@ async function votePhase(gameMsg, store) {
   });
 
   if (tied.length === 0) {
-    await gameMsg.channel.send({
-      embeds: [new EmbedBuilder().setColor('#888888').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription('Không ai bị treo cổ (không có phiếu nào)!')]
-    });
+    const noVoteEmbed = new EmbedBuilder()
+      .setColor('#95A5A6')
+      .setTitle('🗳️ KẾT QUẢ BỎ PHIẾU TREO CỔ')
+      .setDescription('🕊️ Không có ai bị treo cổ hôm nay do không ghi nhận lượt phiếu nào!');
+    await gameMsg.channel.send({ embeds: [noVoteEmbed] });
     return null;
   }
 
   const lynchedId = tied[Math.floor(Math.random() * tied.length)];
   gameData.alive.delete(lynchedId);
 
-  await gameMsg.channel.send({
-    embeds: [new EmbedBuilder().setColor('#CC0000').setTitle('🗳️ KẾT QUẢ BỎ PHIẾU').setDescription(`💀 **${gameData.participants.get(lynchedId)}** (${ROLE_META[gameData.roles.get(lynchedId)].label}) đã bị treo cổ!`)]
-  });
+  const lynchedEmbed = new EmbedBuilder()
+    .setColor('#C0392B')
+    .setTitle('⚖️ KẾT QUẢ BỎ PHIẾU TREO CỔ')
+    .setDescription(`🔥 Dân làng đã quyết định đưa **${gameData.participants.get(lynchedId)}** lên giàn treo cổ!\n🎭 Vai trò thật sự: **${ROLE_META[gameData.roles.get(lynchedId)].label}**`)
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3663/3663335.png');
+
+  await gameMsg.channel.send({ embeds: [lynchedEmbed] });
 
   return lynchedId;
 }
