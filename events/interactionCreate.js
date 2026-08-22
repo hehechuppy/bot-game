@@ -10,6 +10,7 @@ const {
 } = require('discord.js');
 
 const store = require('../store');
+const { activeGames } = require('../games/noitu'); // Fix lỗi reading 'has' cho game nối từ
 
 function buildPlayerButtons(prefix, gameMsgId, gameData, targetIds) {
   const rows = [];
@@ -955,23 +956,23 @@ module.exports = {
 
           return await safeRespond(() =>
             interaction.editReply({
-              content: `✅ Đặt cược thành công **${amount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
+              content: `✅ Bạn đã cược **${amount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
             })
           );
         }
 
-        // ---------------- MODAL TÙNG XỦ MULTI ----------------
+        // ---------------- MODAL TÙNG XU ----------------
         if (customId.startsWith('modal_tx_multi_')) {
           await interaction.deferReply({ ephemeral: true });
 
           const parts = customId.split('_');
-          const choice = parts[3]; // 'ngửa' hoặc 'sấp'
+          const choice = parts[3];
           const gameMsgId = parts[4];
 
           const gameData = store.activeTungXuGames.get(gameMsgId);
           if (!gameData) {
             return await safeRespond(() =>
-              interaction.editReply({ content: '❌ Sòng Tùng Xử đã kết thúc!' })
+              interaction.editReply({ content: '❌ Sòng Tùng Xu đã kết thúc!' })
             );
           }
 
@@ -993,7 +994,6 @@ module.exports = {
             );
           }
 
-          // Trừ tiền và lưu cược
           store.economyMap.set(userId, userBal - amount);
 
           if (!gameData.bets.has(userId)) {
@@ -1003,14 +1003,16 @@ module.exports = {
 
           return await safeRespond(() =>
             interaction.editReply({
-              content: `✅ Đặt cược thành công **${amount.toLocaleString()} Mcoin** vào cửa **${choice.toUpperCase()}**!`
+              content: `✅ Bạn đã cược **${amount.toLocaleString()} Mcoin** vào cửa **${choice.toUpperCase()}**!`
             })
           );
         }
+
+        return;
       }
 
     } catch (error) {
-      console.error('💥 Lỗi không xác định tại interactionCreate:', error);
+      console.error('❌ Lỗi xử lý Interaction:', error);
     }
   }
 };
