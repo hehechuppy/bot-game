@@ -1,23 +1,23 @@
 // events/messageCreate.js
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const store = require('../store');
-const { startBauCua } = require('../games/baucua');
-const { startTungXu } = require('../games/tungxu');
-const { startDoanBom } = require('../games/doanbom');
-const { startMaSoi } = require('../games/masoi');
-const { startNoituGame, handleNoituMessage, activeGames } = require('../games/noitu');
 
 module.exports = {
   name: 'messageCreate',
   async execute(client, message) {
     if (message.author.bot) return;
     const userId = message.author.id;
+
+    // Đảm bảo lấy dailyData an toàn
     const dData = store.getDailyData(userId);
-    if (!dData.claimedMsg && dData.messages < 20) dData.messages++;
+    if (dData && !dData.claimedMsg && dData.messages < 20) {
+      dData.messages++;
+    }
 
     // ================= KIỂM TRA GAME NỐI TỪ ĐANG CHẠY =================
     if (!message.content.startsWith('.')) {
-      if (activeGames.has(message.channelId)) {
+      const { handleNoituMessage, activeGames } = require('../games/noitu');
+      if (activeGames && activeGames.has(message.channelId)) {
         await handleNoituMessage(client, message, store, message.content);
       }
       return;
@@ -196,11 +196,10 @@ module.exports = {
       return message.reply({ embeds: [donateEmbed] });
     }
 
-    // ================= CỬA HÀNG VẬT PHẨM (THIẾT KẾ MỚI) =================
+    // ================= CỬA HÀNG VẬT PHẨM =================
     if (command === 'shop') {
       const userBalance = store.economyMap.get(userId) || 0;
 
-      // Type icons giúp phân loại trực quan
       const TYPE_ICONS = {
         voicetime: '🎙️',
         winmultiplier: '⚡',
@@ -210,7 +209,7 @@ module.exports = {
 
       const desc = store.SHOP_ITEMS.map((item) => {
         const icon = TYPE_ICONS[item.type] || '📦';
-        const boughtToday = dData.itemBuys[item.id] || 0;
+        const boughtToday = dData.itemBuys ? (dData.itemBuys[item.id] || 0) : 0;
 
         let limitText = '';
         if (item.dailyLimit !== null) {
@@ -264,7 +263,8 @@ module.exports = {
       }
 
       if (item.type === 'box') {
-        const remaining = item.dailyLimit - (store.getDailyData(userId).itemBuys[itemId] || 0);
+        const bought = dData.itemBuys ? (dData.itemBuys[itemId] || 0) : 0;
+        const remaining = item.dailyLimit - bought;
         return message.reply(`✅ Đã mua **${item.name}**!\n📦 Dùng \`.box\` để xem, \`.unbox\` để mở.\n⏳ Còn lại: **${remaining}/${item.dailyLimit}** cái hôm nay`);
       }
       return message.reply(`✅ Đã mua **${item.name}**!\n⚡ Dùng \`.sd ${item.id}\` để kích hoạt.`);
@@ -341,14 +341,13 @@ module.exports = {
         return message.reply('📭 Kho của bạn trống rỗng!\n💳 Mua vật phẩm tại `.shop`');
       }
 
-      const dData = store.getDailyData(userId);
       let desc = '';
 
       for (const [itemId, quantity] of inv) {
         const item = store.SHOP_ITEMS.find(i => i.id === parseInt(itemId));
         if (!item) continue;
 
-        const used = dData.itemUses[itemId] || 0;
+        const used = dData.itemUses ? (dData.itemUses[itemId] || 0) : 0;
         const dailyText = item.dailyLimit
           ? `\n⏳ Đã dùng: ${used}/${item.dailyLimit} (hôm nay)`
           : '';
@@ -426,13 +425,25 @@ module.exports = {
       return message.reply({ embeds: [dailyEmbed], components: [row] });
     }
 
-    if (['baucua','bc'].includes(command)) return startBauCua(client, message, store);
-    if (['tungxu','tx'].includes(command)) return startTungXu(client, message, store);
-    if (['doanbom','bom'].includes(command)) return startDoanBom(client, message, store);
-    if (['masoi','ms'].includes(command)) return startMaSoi(client, message, store);
-
-    // ================= GAME NOITU - NỐI TỪ =================
+    // ================= KHỞI CHẠY CÁC GAME =================
+    if (['baucua','bc'].includes(command)) {
+      const { startBauCua } = require('../games/baucua');
+      return startBauCua(client, message, store);
+    }
+    if (['tungxu','tx'].includes(command)) {
+      const { startTungXu } = require('../games/tungxu');
+      return startTungXu(client, message, store);
+    }
+    if (['doanbom','bom'].includes(command)) {
+      const { startDoanBom } = require('../games/doanbom');
+      return startDoanBom(client, message, store);
+    }
+    if (['masoi','ms'].includes(command)) {
+      const { startMaSoi } = require('../games/masoi');
+      return startMaSoi(client, message, store);
+    }
     if (['noitu', 'nt'].includes(command)) {
+      const { startNoituGame } = require('../games/noitu');
       return startNoituGame(client, message, store);
     }
 
@@ -448,7 +459,6 @@ module.exports = {
       return message.reply({ embeds: [balEmbed] });
     }
 
-    // --- .diemdanh: chuỗi 7 ngày ---
     if (['diemdanh','dd'].includes(command)) {
       const result = store.processDiemDanh(userId);
       if (!result.success) {
