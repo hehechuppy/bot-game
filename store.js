@@ -10,7 +10,6 @@ const activeBauCuaGames = new Map();
 const activeTungXuGames = new Map();
 const activeDoanBomGames = new Map();
 const activeMaSoiGames = new Map();
-const activeCaoNutGames = new Map();
 let backupChannelId = '1492795870012379147';
 
 // ================= VOICE LEADERBOARD (RESET HÀNG TUẦN) =================
@@ -29,9 +28,18 @@ let voiceWeekStart = getStartOfCurrentWeek(); // timestamp bắt đầu tuần h
 
 // ================= SHOP / VẬT PHẨM =================
 const SHOP_ITEMS = [
-   
     {
         id: 1,
+        type: 'winmultiplier',
+        name: 'X3 Mcoin',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 3. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt). (Vật phẩm này đang lỗi hiện chưa fix được, ai mua thì sẽ không có đền bù)',
+        price: 1500000,
+        uses: 2,
+        multiplier: 3,
+        dailyLimit: 1
+    },
+    {
+        id: 2,
         type: 'voicetime',
         name: 'X2 Voice',
         description: 'Nhân đôi Mcoin kiếm được khi ở trong kênh voice, có hiệu lực trong 4 giờ. Bot sẽ nhắn tin riêng báo khi hết hạn.',
@@ -40,26 +48,26 @@ const SHOP_ITEMS = [
         dailyLimit: null
     },
     {
-        id: 2,
+        id: 3,
         type: 'winmultiplier',
         name: 'X2 Tiền',
         description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
         price: 1000000,
-        uses: 2,
+        uses: 5,
         multiplier: 2,
-        dailyLimit: 2
+        dailyLimit: 5
     },
     {
-        id: 3,
+        id: 4,
         type: 'insurance',
         name: 'Bảo Hiểm Thua',
         description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại toàn bộ tiền đã thua (1 lần).',
         price: 1000000,
         uses: 1,
-        dailyLimit: 2
+        dailyLimit: 1
     },
     {
-        id: 4,
+        id: 6,
         type: 'box',
         name: 'Lucky Box',
         description: 'Hộp may mắn bí ẩn — chỉ biết kết quả sau khi mở! Dùng `.box` để xem, `.unbox` để mở.',
@@ -462,7 +470,6 @@ module.exports = {
     activeTungXuGames,
     activeDoanBomGames,
     activeMaSoiGames,
-    activeCaoNutGames,
     SHOP_ITEMS,
     inventoryMap,
     activeBuffsMap,
