@@ -80,7 +80,7 @@ module.exports = {
 
           { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
 
-          { name: '❗ Luật Server SHADOW GLADE', value: '`cấm bug tiền`', inline: false },
+          { name: '❗ Luật Server SHADOW GLADE', value: '`cấm bug,buff tiền`', inline: false },
 
         )
 
