@@ -5,7 +5,10 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } = require('discord.js');
 
 const store = require('../store');
@@ -286,23 +289,28 @@ module.exports = {
         if (buttonId.startsWith('tx_multi_')) {
           await interaction.deferUpdate();
 
-          const choice = buttonId.split('_')[2];
+          const choice = buttonId.split('_')[2]; // 'heads' hoặc 'tails'
           const gameMsg = interaction.message;
           const gameData = store.activeTungXuGames.get(gameMsg.id);
 
           if (!gameData) {
             return await safeRespond(() =>
-              interaction.followUp({ content: '❌ Ván Tung Xu này đã kết thúc!', ephemeral: true })
+              interaction.followUp({
+                content: '❌ Ván Tung Xu này đã kết thúc!',
+                ephemeral: true
+              })
             );
           }
 
           if (gameData.players.has(userId)) {
             return await safeRespond(() =>
-              interaction.followUp({ content: '⚠️ Bạn đã chọn rồi!', ephemeral: true })
+              interaction.followUp({
+                content: '⚠️ Bạn đã chọn rồi!',
+                ephemeral: true
+              })
             );
           }
 
-          const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
           const modal = new ModalBuilder()
             .setCustomId(`tx_bet_${gameMsg.id}_${choice}`)
             .setTitle('💰 Nhập Tiền Cược');
@@ -312,6 +320,8 @@ module.exports = {
             .setLabel('Số Mcoin cược')
             .setStyle(TextInputStyle.Short)
             .setPlaceholder('VD: 1000')
+            .setMinLength(1)
+            .setMaxLength(10)
             .setRequired(true);
 
           const actionRow = new ActionRowBuilder().addComponents(betInput);
@@ -615,6 +625,119 @@ module.exports = {
               ephemeral: true
             })
           );
+        }
+      }
+
+      // =================================================
+      // TUNG XU - SUBMIT FORM CỬA
+      // =================================================
+      if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('tx_bet_')) {
+          const userId = interaction.user.id;
+          const parts = interaction.customId.split('_');
+          const gameMsgId = parts[2];
+          const choice = parts[3]; // 'heads' hoặc 'tails'
+
+          const gameData = store.activeTungXuGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Ván Tung Xu này đã kết thúc!',
+                ephemeral: true
+              })
+            );
+          }
+
+          // Lấy giá trị từ input
+          const betAmountStr = interaction.fields.getTextInputValue('bet_amount');
+          const betAmount = parseInt(betAmountStr);
+
+          // Validate
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Tiền cược phải là số dương!',
+                ephemeral: true
+              })
+            );
+          }
+
+          if (betAmount > 999999999) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Tiền cược quá lớn!',
+                ephemeral: true
+              })
+            );
+          }
+
+          const currentBalance = store.economyMap.get(userId) || 0;
+
+          if (currentBalance < betAmount) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content:
+                  `❌ Bạn không đủ số dư!\n\n` +
+                  `💰 Tiền cược: **${betAmount.toLocaleString()} Mcoin**\n` +
+                  `💳 Số dư của bạn: **${currentBalance.toLocaleString()} Mcoin**\n` +
+                  `📉 Còn thiếu: **${(betAmount - currentBalance).toLocaleString()} Mcoin**`,
+                ephemeral: true
+              })
+            );
+          }
+
+          // Trừ tiền
+          store.economyMap.set(userId, currentBalance - betAmount);
+
+          // Thêm vào game
+          gameData.players.set(userId, {
+            username: interaction.user.username,
+            choice: choice,
+            betAmount: betAmount
+          });
+
+          // Tạo embed mới
+          const playersData = [...gameData.players.entries()];
+          const playersList = playersData
+            .map(([uid, data]) => {
+              const choiceText = data.choice === 'heads' ? '😊 Ngửa' : '🫥 Sấp';
+              return `> **${data.username}** - ${choiceText} (${data.betAmount.toLocaleString()} Mcoin)`;
+            })
+            .join('\n');
+
+          const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🪙 TUNG XU')
+            .setDescription(
+              `👥 **Người tham gia:** ${gameData.players.size}\n` +
+              `${playersList}\n\n` +
+              `━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `⏳ Chờ bạn khác tham gia...`
+            )
+            .setFooter({ text: '🪙 Tung Xu • Cơ hội 50/50' })
+            .setTimestamp();
+
+          // Reply cho user
+          await safeRespond(() =>
+            interaction.reply({
+              content: `✅ Bạn đã chọn **${choice === 'heads' ? 'Ngửa 😊' : 'Sấp 🫥'}** cược **${betAmount.toLocaleString()} Mcoin**`,
+              ephemeral: true
+            })
+          );
+
+          // Update game message
+          try {
+            const gameMessage = await interaction.channel.messages.fetch(gameMsgId);
+            await gameMessage.edit({ embeds: [embed] });
+            console.log(`✅ User ${interaction.user.username} đã tham gia Tung Xu với ${betAmount} Mcoin`);
+          } catch (err) {
+            console.error('❌ Lỗi cập nhật game message:', err);
+            // Hoàn lại tiền nếu lỗi
+            const balanceNow = store.economyMap.get(userId) || 0;
+            store.economyMap.set(userId, balanceNow + betAmount);
+            gameData.players.delete(userId);
+          }
         }
       }
     } catch (err) {
