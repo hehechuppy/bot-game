@@ -9,7 +9,6 @@ const {
 } = require('discord.js');
 
 const store = require('../store');
-const { handleGameButton, handleGameModal } = require('./gameButtonHandlers');
 
 const {
   activeGames
@@ -109,10 +108,345 @@ module.exports = {
         const buttonId =
           interaction.customId;
 
-        // ✅ HANDLE TẤT CẢ GAME BUTTON (.ms, .tx, etc)
-        if (buttonId.startsWith('tx_multi_') || buttonId.startsWith('ms_')) {
-          return await handleGameButton(interaction, store);
+        // ✅ HANDLE GAME BUTTON (.tx, .ms) - viết handler trực tiếp dưới đây
+
+        // =================================================
+        // TUNG XU - CHỌN NGỬA/SẤP
+        // =================================================
+        if (buttonId.startsWith('tx_multi_')) {
+          await interaction.deferUpdate();
+
+          const choice = buttonId.split('_')[2];
+          const gameMsg = interaction.message;
+          const gameData = store.activeTungXuGames.get(gameMsg.id);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.followUp({ content: '❌ Ván Tung Xu này đã kết thúc!', ephemeral: true })
+            );
+          }
+
+          if (gameData.players.has(userId)) {
+            return await safeRespond(() =>
+              interaction.followUp({ content: '⚠️ Bạn đã chọn rồi!', ephemeral: true })
+            );
+          }
+
+          const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+          const modal = new ModalBuilder()
+            .setCustomId(`tx_bet_${gameMsg.id}_${choice}`)
+            .setTitle('💰 Nhập Tiền Cược');
+
+          const betInput = new TextInputBuilder()
+            .setCustomId('bet_amount')
+            .setLabel('Số Mcoin cược')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('VD: 1000')
+            .setRequired(true);
+
+          const actionRow = new ActionRowBuilder().addComponents(betInput);
+          modal.addComponents(actionRow);
+
+          return await interaction.showModal(modal);
         }
+
+        // =================================================
+        // MA SÓI - JOIN
+        // =================================================
+        if (buttonId.startsWith('ms_join_')) {
+          await interaction.deferUpdate();
+
+          const gameMsgId = buttonId.split('_')[2];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.followUp({ content: '❌ Ván Ma Sói này đã kết thúc!', ephemeral: true })
+            );
+          }
+
+          if (gameData.phase !== 'joining') {
+            return await safeRespond(() =>
+              interaction.followUp({ content: '❌ Ván Ma Sói đã bắt đầu!', ephemeral: true })
+            );
+          }
+
+          if (gameData.participants.has(userId)) {
+            return await safeRespond(() =>
+              interaction.followUp({ content: '⚠️ Bạn đã tham gia rồi!', ephemeral: true })
+            );
+          }
+
+          gameData.participants.set(userId, interaction.user.username);
+
+          const embed = new EmbedBuilder()
+            .setColor('#8B0000')
+            .setTitle('🐺 SÒNG MA SÓI')
+            .setDescription(
+              `👥 **Người tham gia:** ${gameData.participants.size}\n` +
+              `${[...gameData.participants.values()].map((name, i) => `> ${i + 1}. ${name}`).join('\n')}`
+            )
+            .setFooter({ text: 'Chờ phát triển...' });
+
+          return await safeRespond(() =>
+            interaction.message.edit({ embeds: [embed] })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - SÓI CHỌN NẠN NHÂN
+        // =================================================
+        if (buttonId.startsWith('ms_wolf_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          gameData.wolfVotes.set(userId, targetId);
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `✅ Bạn đã bình chọn nạn nhân: **${gameData.participants.get(targetId)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - BẢO VỆ CHỌN NGƯỜI
+        // =================================================
+        if (buttonId.startsWith('ms_guard_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          gameData.guardTarget = targetId;
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `✅ Bạn đã chọn bảo vệ: **${gameData.participants.get(targetId)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - BÁC SĨ CHỌN NGƯỜI CỨU
+        // =================================================
+        if (buttonId.startsWith('ms_doctor_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          gameData.doctorTarget = targetId;
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `✅ Bạn đã chọn cứu: **${gameData.participants.get(targetId)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - TIÊN TRI CHỌN NGƯỜI
+        // =================================================
+        if (buttonId.startsWith('ms_seer_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          const { ROLE_META } = require('../games/masoi');
+          const role = gameData.roles.get(targetId);
+          const isWolf = role === 'soi';
+          const rMeta = ROLE_META[role];
+
+          gameData.seerActed = true;
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `🔮 **${gameData.participants.get(targetId)}** là **${rMeta.label}** ${isWolf ? '🐺 **MA SÓI!**' : ''}`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - PHÙ THỦY CỨU NẠNHÂN
+        // =================================================
+        if (buttonId.startsWith('ms_witchheal_')) {
+          await interaction.deferUpdate();
+
+          const gameMsgId = buttonId.split('_')[2];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData || !gameData.wolfVictim) return;
+
+          gameData.witchSavedVictim = true;
+          gameData.witchHealUsed = true;
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `💚 Bạn đã cứu: **${gameData.participants.get(gameData.wolfVictim)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - PHÙ THỦY ĐỘC SAT MENU
+        // =================================================
+        if (buttonId.startsWith('ms_witchpoisonmenu_')) {
+          await interaction.deferUpdate();
+
+          const gameMsgId = buttonId.split('_')[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          const targets = [...gameData.alive];
+          const rows = [];
+          let row = new ActionRowBuilder();
+          let count = 0;
+
+          for (const uid of targets.slice(0, 25)) {
+            if (count === 5) {
+              rows.push(row);
+              row = new ActionRowBuilder();
+              count = 0;
+            }
+            const name = gameData.participants.get(uid) || 'Người chơi';
+            row.addComponents(
+              new ButtonBuilder()
+                .setCustomId(`ms_witchpoison_${uid}_${gameMsgId}`)
+                .setLabel(name.slice(0, 80))
+                .setStyle(ButtonStyle.Danger)
+            );
+            count++;
+          }
+          if (count > 0) rows.push(row);
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: '☠️ Chọn người để độc sát:',
+              components: rows,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - PHÙ THỦY ĐỘC SAT CONFIRM
+        // =================================================
+        if (buttonId.startsWith('ms_witchpoison_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          gameData.witchPoisonTarget = targetId;
+          gameData.witchPoisonUsed = true;
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `☠️ Bạn đã độc sát: **${gameData.participants.get(targetId)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - PHÙ THỦY BỎ QUA
+        // =================================================
+        if (buttonId.startsWith('ms_witchskip_')) {
+          await interaction.deferUpdate();
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: '➡️ Bạn đã bỏ qua đêm nay.',
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - THỢ SĂN BẮN PHÁT SÚNG
+        // =================================================
+        if (buttonId.startsWith('ms_hunter_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          gameData.hunterRevengeTarget = targetId;
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `🏹 Thợ Săn đã chọn bắn: **${gameData.participants.get(targetId)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
+        // =================================================
+        // MA SÓI - VOTE TREO CỔ
+        // =================================================
+        if (buttonId.startsWith('ms_vote_')) {
+          await interaction.deferUpdate();
+
+          const parts = buttonId.split('_');
+          const targetId = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
+
+          if (!gameData) return;
+
+          if (gameData.votes.has(userId)) {
+            return await safeRespond(() =>
+              interaction.followUp({
+                content: '⚠️ Bạn đã vote rồi!',
+                ephemeral: true
+              })
+            );
+          }
+
+          gameData.votes.set(userId, targetId);
+
+          return await safeRespond(() =>
+            interaction.followUp({
+              content: `✅ Bạn đã vote: **${gameData.participants.get(targetId)}**`,
+              ephemeral: true
+            })
+          );
+        }
+
 
         const userId =
           interaction.user.id;
@@ -1435,210 +1769,4 @@ module.exports = {
                 inline: true
               },
               {
-                name:
-                  '📊 Số dư mới',
-                value:
-                  `**${newBalance.toLocaleString()}** Mcoin`,
-                inline: true
-              },
-              {
-                name:
-                  '🔄 Thay đổi',
-                value:
-                  operationText,
-                inline: true
-              },
-              {
-                name:
-                  '👨‍💼 Người thực hiện',
-                value:
-                  interaction.user
-                    .username,
-                inline: true
-              }
-            )
-            .setTimestamp();
-
-        return await safeRespond(
-          () =>
-            interaction.reply({
-              embeds: [
-                resultEmbed
-              ],
-              ephemeral: false
-            })
-        );
-      }
-
-      // =====================================================
-      // TANGQUA
-      // =====================================================
-
-      if (
-        commandName ===
-        'tangqua'
-      ) {
-        if (!isAdmin) {
-          return await safeRespond(
-            () =>
-              interaction.reply({
-                content:
-                  '❌ Bạn không có quyền sử dụng lệnh này!',
-                ephemeral: true
-              })
-          );
-        }
-
-        const targetUser =
-          interaction.options.getUser(
-            'user'
-          );
-
-        const itemId =
-          interaction.options.getInteger(
-            'item'
-          );
-
-        const quantity =
-          interaction.options.getInteger(
-            'quantity'
-          );
-
-        if (!targetUser) {
-          return await safeRespond(
-            () =>
-              interaction.reply({
-                content:
-                  '❌ Vui lòng chỉ định người nhận!',
-                ephemeral: true
-              })
-          );
-        }
-
-        const item =
-          store.SHOP_ITEMS.find(
-            i =>
-              i.id ===
-              itemId
-          );
-
-        if (!item) {
-          return await safeRespond(
-            () =>
-              interaction.reply({
-                content:
-                  `❌ Không tìm thấy vật phẩm ID ${itemId}!`,
-                ephemeral: true
-              })
-          );
-        }
-
-        if (
-          quantity <= 0
-        ) {
-          return await safeRespond(
-            () =>
-              interaction.reply({
-                content:
-                  '❌ Số lượng phải lớn hơn 0!',
-                ephemeral: true
-              })
-          );
-        }
-
-        store.addToInventory(
-          targetUser.id,
-          itemId,
-          quantity
-        );
-
-        const giftEmbed =
-          new EmbedBuilder()
-            .setColor(
-              '#FF69B4'
-            )
-            .setTitle(
-              '🎁 TẶNG VẬT PHẨM - THÀNH CÔNG'
-            )
-            .addFields(
-              {
-                name:
-                  '🎉 Người Nhận',
-                value:
-                  `${targetUser.username}`,
-                inline: true
-              },
-              {
-                name:
-                  '📦 Vật Phẩm',
-                value:
-                  `${item.name} (ID: ${item.id})`,
-                inline: true
-              },
-              {
-                name:
-                  '📊 Số Lượng',
-                value:
-                  `**${quantity}** cái`,
-                inline: true
-              },
-              {
-                name:
-                  '💰 Giá Trị',
-                value:
-                  `${(
-                    item.price *
-                    quantity
-                  ).toLocaleString()} Mcoin`,
-                inline: true
-              },
-              {
-                name:
-                  '👨‍💼 Người Tặng',
-                value:
-                  interaction.user
-                    .username,
-                inline: true
-              }
-            )
-            .setFooter({
-              text:
-                'Vật phẩm đã được thêm vào kho của người nhận'
-            })
-            .setTimestamp();
-
-        return await safeRespond(
-          () =>
-            interaction.reply({
-              embeds: [
-                giftEmbed
-              ],
-              ephemeral: false
-            })
-        );
-      }
-
-      return;
-
-    } catch (err) {
-      console.error(
-        '❌ Lỗi interactionCreate:',
-        err
-      );
-
-      if (
-        !interaction.replied &&
-        !interaction.deferred
-      ) {
-        return await safeRespond(
-          () =>
-            interaction.reply({
-              content:
-                '❌ Đã xảy ra lỗi khi xử lý thao tác này.',
-              ephemeral: true
-            })
-        );
-      }
-    }
-  }
-};
+   ... (Còn 5 KB)
