@@ -88,8 +88,8 @@ module.exports = {
     }
 
     // ================= TREO VOICE: CÀY MCOIN =================
-    // Mỗi 30 giây, kiểm tra ai đang ở kênh voice (không phải bot)
-    // Cộng random 1000-5000 Mcoin + 120 giây thời gian voice tuần
+    // Mỗi 1 phút, kiểm tra ai đang ở kênh voice (không phải bot)
+    // Cộng random 1000-5000 Mcoin + 60 giây thời gian voice
     setInterval(async () => {
       try {
         // Duyệt tất cả guild
@@ -102,21 +102,21 @@ module.exports = {
             for (const [memberId, member] of channel.members) {
               if (member.user.bot) continue; // Bỏ qua bot
 
-              // Cộng Mcoin
+              // Cộng Mcoin (random 1000-5000)
               const baseEarned = Math.floor(Math.random() * 4001) + 1000; // 1000-5000
               const multiplier = store.getVoiceMultiplier(memberId);
               const earned = baseEarned * multiplier;
               store.addTungXu(memberId, earned);
 
-              // Cộng thời gian voice (120 giây mỗi 30 giây tick)
-              store.addVoiceTime(memberId, 120);
+              // Cộng thời gian voice (60 giây mỗi 1 phút tick)
+              store.addVoiceTime(memberId, 60);
             }
           }
         }
       } catch (err) {
         console.error('❌ Lỗi cộng voice Mcoin:', err);
       }
-    }, 30000); // 30 giây
+    }, 60000); // 60 giây = 1 phút
 
     // ================= RESET BẢNG VOICE TUẦN (Thứ 2 00:00 UTC) =================
     // Kiểm tra mỗi phút xem đã sang tuần mới chưa
