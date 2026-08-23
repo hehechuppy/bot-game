@@ -421,7 +421,9 @@ module.exports = {
 
 
       const desc = store.SHOP_ITEMS
-        .filter(item => item.id >= 1 && item.id <= 4)  // Chỉ hiển thị ID 1-4
+
+        .filter(item => [1, 2, 3, 6].includes(item.id))  // Hiển thị ID 1, 2, 3, 6 (Lucky Box)
+
         .map((item) => {
 
         const icon = TYPE_ICONS[item.type] || '📦';
