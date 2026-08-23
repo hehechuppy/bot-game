@@ -634,13 +634,20 @@ module.exports = {
       if (interaction.isModalSubmit()) {
         if (interaction.customId.startsWith('tx_bet_')) {
           const userId = interaction.user.id;
-          const parts = interaction.customId.split('_');
-          const gameMsgId = parts[2];
-          const choice = parts[3]; // 'heads' hoặc 'tails'
+          
+          // ✅ FIX: Parse customId an toàn bằng cách tách từ cuối
+          // Format: tx_bet_{gameMsgId}_{choice}
+          const customId = interaction.customId;
+          const lastUnderscoreIdx = customId.lastIndexOf('_');
+          const choice = customId.substring(lastUnderscoreIdx + 1); // 'heads' hoặc 'tails'
+          const gameMsgId = customId.substring(7, lastUnderscoreIdx); // tx_bet_ = 7 ký tự
+
+          console.log(`📝 Modal submit TX: userId=${userId}, gameMsgId=${gameMsgId}, choice=${choice}`);
 
           const gameData = store.activeTungXuGames.get(gameMsgId);
 
           if (!gameData) {
+            console.warn(`⚠️ Game ${gameMsgId} không tồn tại`);
             return await safeRespond(() =>
               interaction.reply({
                 content: '❌ Ván Tung Xu này đã kết thúc!',
@@ -650,11 +657,24 @@ module.exports = {
           }
 
           // Lấy giá trị từ input
-          const betAmountStr = interaction.fields.getTextInputValue('bet_amount');
+          let betAmountStr;
+          try {
+            betAmountStr = interaction.fields.getTextInputValue('bet_amount');
+          } catch (err) {
+            console.error('❌ Lỗi lấy bet_amount:', err);
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Không thể lấy số tiền cược!',
+                ephemeral: true
+              })
+            );
+          }
+
           const betAmount = parseInt(betAmountStr);
 
           // Validate
           if (isNaN(betAmount) || betAmount <= 0) {
+            console.warn(`⚠️ Invalid bet amount: ${betAmountStr}`);
             return await safeRespond(() =>
               interaction.reply({
                 content: '❌ Tiền cược phải là số dương!',
@@ -675,6 +695,7 @@ module.exports = {
           const currentBalance = store.economyMap.get(userId) || 0;
 
           if (currentBalance < betAmount) {
+            console.warn(`⚠️ User ${interaction.user.username} không đủ tiền: cần ${betAmount}, có ${currentBalance}`);
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -696,6 +717,8 @@ module.exports = {
             choice: choice,
             betAmount: betAmount
           });
+
+          console.log(`✅ Added ${interaction.user.username} to TX game: ${choice}, ${betAmount} Mcoin`);
 
           // Tạo embed mới
           const playersData = [...gameData.players.entries()];
@@ -730,7 +753,7 @@ module.exports = {
           try {
             const gameMessage = await interaction.channel.messages.fetch(gameMsgId);
             await gameMessage.edit({ embeds: [embed] });
-            console.log(`✅ User ${interaction.user.username} đã tham gia Tung Xu với ${betAmount} Mcoin`);
+            console.log(`✅ Updated TX game message ${gameMsgId}`);
           } catch (err) {
             console.error('❌ Lỗi cập nhật game message:', err);
             // Hoàn lại tiền nếu lỗi
