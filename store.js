@@ -299,7 +299,7 @@ function processDiemDanh(userId) {
 
     let bonusBox = false;
     if (streak.streakDay === 7) {
-        addToInventory(userId, 6, 1); // tặng thêm 1 Lucky Box
+        addToInventory(userId, 4, 1); // ✅ FIX: tặng Lucky Box (ID 4, không phải 6)
         bonusBox = true;
         streak.streakDay = 0; // đủ 7 ngày -> reset chuỗi, lần điểm danh liên tiếp tiếp theo sẽ tính lại từ ngày 1
     }
@@ -329,6 +329,12 @@ function getVoiceLeaderboard(topN = 50) {
         .map(([userId, data]) => [userId, data.totalSeconds]);
     
     return sorted;
+}
+
+// ✅ RESET BẢNG XẾP HẠNG VOICE MỖI NGÀY (sau phát thưởng)
+function resetVoiceLeaderboardDaily() {
+    voiceLeaderboardMap.clear();
+    return true;
 }
 
 // Kiểm tra xem đã sang tuần mới chưa (Thứ 2 00:00:00 UTC)
@@ -366,7 +372,7 @@ async function checkAndResetVoiceWeek() {
             
             // Trao thưởng Lucky Box nếu có
             if (reward.box > 0) {
-                addToInventory(userId, 6, reward.box); // itemId 6 = Lucky Box
+                addToInventory(userId, 4, reward.box); // ✅ FIX: ID 4, không phải 6
             }
             
             winners.push({
@@ -396,7 +402,8 @@ function generateBackupData() {
         customCodes: Array.from(customCodesMap.entries()),
         leaderboard: Array.from(leaderboardMap.entries()),
         voiceLeaderboard: Array.from(voiceLeaderboardMap.entries()),
-        streakMap: Array.from(streakMap.entries()), // ← Lưu chuỗi điểm danh
+        streakMap: Array.from(streakMap.entries()),
+        inventoryMap: Array.from(inventoryMap.entries(), ([k, v]) => [k, Array.from(v)]), // ✅ FIX: Thêm inventory backup
         voiceWeekStart,
         backupChannelId
     }, null, 2);
@@ -439,6 +446,14 @@ function restoreBackupData(backupJson) {
         if (data.streakMap) {
             streakMap.clear();
             for (const [k, v] of data.streakMap) streakMap.set(k, v);
+        }
+        
+        // ✅ FIX: Restore inventoryMap
+        if (data.inventoryMap) {
+            inventoryMap.clear();
+            for (const [k, v] of data.inventoryMap) {
+                inventoryMap.set(k, new Map(v));
+            }
         }
         
         if (data.voiceWeekStart) voiceWeekStart = data.voiceWeekStart;
@@ -491,6 +506,7 @@ module.exports = {
     addLeaderboardScore,
     addVoiceTime,
     getVoiceLeaderboard,
+    resetVoiceLeaderboardDaily,
     checkAndResetVoiceWeek,
     getStartOfCurrentWeek,
     generateBackupData,
