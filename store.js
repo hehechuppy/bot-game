@@ -49,7 +49,7 @@ const SHOP_ITEMS = [
         dailyLimit: 1
     },
     {
-        id: 4,
+        id: 6,
         type: 'box',
         name: 'Lucky Box',
         description: 'Hộp may mắn bí ẩn — chỉ biết kết quả sau khi mở! Dùng `.box` để xem, `.unbox` để mở.',
@@ -289,7 +289,7 @@ function processDiemDanh(userId) {
 
     let bonusBox = false;
     if (streak.streakDay === 7) {
-        addToInventory(userId, 6, 1); // tặng thêm 1 Lucky Box
+        addToInventory(userId, 6, 1); // tặng thêm 1 Lucky Box (id 6)
         bonusBox = true;
         streak.streakDay = 0; // đủ 7 ngày -> reset chuỗi, lần điểm danh liên tiếp tiếp theo sẽ tính lại từ ngày 1
     }
