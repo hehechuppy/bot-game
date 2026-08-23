@@ -2,8 +2,8 @@ const economyMap = new Map();
 const dailyDataMap = new Map();
 const usedCodesMap = new Map();
 const customCodesMap = new Map([
-    ['tanthu', { reward: 1000, expiresAt: null }],
-    ['shadowglade', { reward: 1000, expiresAt: null }]
+    ['tanthu', { reward: 100000, expiresAt: null }],
+    ['shadowglade', { reward: 100000, expiresAt: null }]
 ]);
 const leaderboardMap = new Map();
 const activeBauCuaGames = new Map();
@@ -53,7 +53,7 @@ const SHOP_ITEMS = [
         id: 3,
         type: 'insurance',
         name: 'Bảo Hiểm Thua',
-        description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại toàn bộ tiền đã thua (1 lần).',
+        description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại  75% số tiền đã thua (1 lần).',
         price: 1000000,
         uses: 1,
         dailyLimit: 2
