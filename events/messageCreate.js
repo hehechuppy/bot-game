@@ -420,7 +420,9 @@ module.exports = {
 
 
 
-      const desc = store.SHOP_ITEMS.map((item) => {
+      const desc = store.SHOP_ITEMS
+        .filter(item => item.id >= 1 && item.id <= 4)  // Chỉ hiển thị ID 1-4
+        .map((item) => {
 
         const icon = TYPE_ICONS[item.type] || '📦';
 
@@ -520,13 +522,7 @@ module.exports = {
 
       store.addToInventory(userId, item.id, 1);
 
-
-
-      if (item.dailyLimit) {
-
-        store.recordItemBuy(userId, itemId);
-
-      }
+      store.recordItemBuy(userId, itemId);
 
 
 
@@ -598,7 +594,7 @@ module.exports = {
 
         const total = store.activateInsurance(userId, item.uses);
 
-        return message.reply(`🛡️ **${item.name}** đã kích hoạt!\n💰 Sẽ hoàn lại tiền nếu thua ở ván tiếp theo\n📊 Bảo hiểm còn lại: **${total}** lượt`);
+        return message.reply(`🛡️ **${item.name}** đã kích hoạt!\n💰 Sẽ hoàn lại **75%** tiền nếu thua ở ván tiếp theo (1 lần)\n📊 Bảo hiểm còn lại: **${total}** lượt`);
 
       }
 
@@ -756,7 +752,9 @@ module.exports = {
 
       const result = store.openBoxes(userId, 6, requested);
 
-      if (!result.success) return message.reply('❌ Có lỗi khi mở hộp!');
+      if (!result.success) {
+        return message.reply(`❌ Không thể mở hộp! Lý do: ${result.reason}`);
+      }
 
 
 
@@ -947,5 +945,4 @@ module.exports = {
 
   },
 
-}; 
-
+};
