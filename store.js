@@ -10,6 +10,7 @@ const activeBauCuaGames = new Map();
 const activeTungXuGames = new Map();
 const activeDoanBomGames = new Map();
 const activeMaSoiGames = new Map();
+const activeCaoNutGames = new Map();
 let backupChannelId = '1492795870012379147';
 
 // ================= VOICE LEADERBOARD (RESET HÀNG NGÀY) =================
@@ -18,9 +19,8 @@ let voiceDayStart = new Date().setHours(0, 0, 0, 0); // timestamp bắt đầu n
 
 // ================= SHOP / VẬT PHẨM =================
 const SHOP_ITEMS = [
-   
     {
-        id: 2,
+        id: 1,
         type: 'voicetime',
         name: 'X2 Voice',
         description: 'Nhân đôi Mcoin kiếm được khi ở trong kênh voice, có hiệu lực trong 4 giờ. Bot sẽ nhắn tin riêng báo khi hết hạn.',
@@ -29,7 +29,7 @@ const SHOP_ITEMS = [
         dailyLimit: null
     },
     {
-        id: 3,
+        id: 2,
         type: 'winmultiplier',
         name: 'X2 Tiền',
         description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
@@ -39,16 +39,17 @@ const SHOP_ITEMS = [
         dailyLimit: 5
     },
     {
-        id: 4,
+        id: 3,
         type: 'insurance',
         name: 'Bảo Hiểm Thua',
-        description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại toàn bộ tiền đã thua (1 lần).',
+        description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại 75% số tiền đã thua (1 lần).',
         price: 1000000,
         uses: 1,
+        refundPercent: 0.75,
         dailyLimit: 1
     },
     {
-        id: 6,
+        id: 4,
         type: 'box',
         name: 'Lucky Box',
         description: 'Hộp may mắn bí ẩn — chỉ biết kết quả sau khi mở! Dùng `.box` để xem, `.unbox` để mở.',
@@ -172,7 +173,7 @@ function consumeInsuranceIfLoss(userId, lossAmount) {
     if (uses <= 0) return 0;
     const remaining = uses - 1;
     if (remaining <= 0) activeInsuranceMap.delete(userId); else activeInsuranceMap.set(userId, remaining);
-    return lossAmount;
+    return Math.floor(lossAmount * 0.75); // Hoàn lại 75%
 }
 
 function activateVoiceBuff(userId, durationMs) {
@@ -207,7 +208,8 @@ function getDailyData(userId) {
             claimedGame: false,
             claimedEarned: false,
             lastDiemDanh: null,
-            itemUses: {} // itemId -> số lần đã dùng .sd hôm nay (dùng cho giới hạn/ngày)
+            itemBuys: {},   // itemId -> số lần đã mua hôm nay
+            itemUses: {}    // itemId -> số lần đã dùng .sd hôm nay
         };
         dailyDataMap.set(userId, data);
     }
@@ -231,13 +233,13 @@ function canBuyItemToday(userId, itemId) {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item || item.dailyLimit == null) return true;
     const dData = getDailyData(userId);
-    const bought = dData.itemUses[itemId] || 0;
+    const bought = dData.itemBuys[itemId] || 0;
     return bought < item.dailyLimit;
 }
 
 function recordItemBuy(userId, itemId) {
     const dData = getDailyData(userId);
-    dData.itemUses[itemId] = (dData.itemUses[itemId] || 0) + 1;
+    dData.itemBuys[itemId] = (dData.itemBuys[itemId] || 0) + 1;
 }
 
 function addTungXu(userId, amount) {
@@ -416,6 +418,7 @@ module.exports = {
     activeTungXuGames,
     activeDoanBomGames,
     activeMaSoiGames,
+    activeCaoNutGames,
     SHOP_ITEMS,
     inventoryMap,
     activeBuffsMap,
