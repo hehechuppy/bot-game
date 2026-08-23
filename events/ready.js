@@ -104,12 +104,12 @@ module.exports = {
 
               // Cộng Mcoin
               const baseEarned = Math.floor(Math.random() * 4001) + 1000; // 1000-5000
-              const multiplier = store.getVoiceMultiplier(member.id);
+              const multiplier = store.getVoiceMultiplier(memberId);
               const earned = baseEarned * multiplier;
-              store.addTungXu(member.id, earned);
+              store.addTungXu(memberId, earned);
 
               // Cộng thời gian voice (120 giây mỗi 30 giây tick)
-              store.addVoiceTime(member.id, 120);
+              store.addVoiceTime(memberId, 120);
             }
           }
         }
