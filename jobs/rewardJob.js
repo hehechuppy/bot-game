@@ -71,7 +71,7 @@ function startRewardJob(client) {
         store.addTungXu(uId, rewardData.mcoin);
 
         if (rewardData.box > 0) {
-          store.addToInventory(uId, 6, rewardData.box);
+          store.addToInventory(uId, 4, rewardData.box); // ✅ FIX: Lucky Box ID 4 (không phải 6)
         }
 
         allRewardsLog.push({
@@ -82,6 +82,9 @@ function startRewardJob(client) {
           box: rewardData.box
         });
       }
+
+      // ✅ RESET BẢNG VOICE HÀNG NGÀY (sau khi phát thưởng)
+      store.resetVoiceLeaderboardDaily();
     }
 
     // ========== GỬI THÔNG BÁO VỀ CHANNEL BACKUP ==========
