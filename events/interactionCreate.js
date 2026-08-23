@@ -711,11 +711,11 @@ module.exports = {
           // Trừ tiền
           store.economyMap.set(userId, currentBalance - betAmount);
 
-          // Thêm vào game
+          // Thêm vào game (✅ FIX: bet thay vì betAmount)
           gameData.players.set(userId, {
             username: interaction.user.username,
             choice: choice,
-            betAmount: betAmount
+            bet: betAmount
           });
 
           console.log(`✅ Added ${interaction.user.username} to TX game: ${choice}, ${betAmount} Mcoin`);
@@ -725,7 +725,7 @@ module.exports = {
           const playersList = playersData
             .map(([uid, data]) => {
               const choiceText = data.choice === 'heads' ? '😊 Ngửa' : '🫥 Sấp';
-              return `> **${data.username}** - ${choiceText} (${data.betAmount.toLocaleString()} Mcoin)`;
+              return `> **${data.username}** - ${choiceText} (${data.bet.toLocaleString()} Mcoin)`;
             })
             .join('\n');
 
