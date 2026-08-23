@@ -5,23 +5,6 @@ const store = require('../store');
 
 function startRewardJob(client) {
 
-  // ========== TREO VOICE: MỖI 120 GIÂY NHẬN 1.000 - 5.000 MCOIN ==========
-  new CronJob('*/120 * * * * *', async () => {
-    try {
-      // Duyệt tất cả người đang có dữ liệu voice
-      for (const [userId, data] of store.voiceLeaderboardMap.entries()) {
-        if (!data || data.startWeek !== store.voiceWeekStart) continue;
-
-        // Random từ 1.000 -> 5.000 Mcoin
-        const reward = Math.floor(Math.random() * 4001) + 1000;
-
-        store.addTungXu(userId, reward);
-      }
-    } catch (err) {
-      console.error('❌ Lỗi phát Mcoin treo voice:', err);
-    }
-  }, null, true, 'Asia/Ho_Chi_Minh');
-
   // ========== PHÁT THƯỞNG HÀNG NGÀY LÚC 0H (00:00) ==========
   // Gồm: Bảng xếp hạng Mcoin + Bảng xếp hạng Voice
   new CronJob('0 0 0 * * *', async () => {
@@ -71,7 +54,7 @@ function startRewardJob(client) {
         store.addTungXu(uId, rewardData.mcoin);
 
         if (rewardData.box > 0) {
-          store.addToInventory(uId, 4, rewardData.box); // ✅ FIX: Lucky Box ID 4 (không phải 6)
+          store.addToInventory(uId, 4, rewardData.box); // ✅ Lucky Box ID 4
         }
 
         allRewardsLog.push({
