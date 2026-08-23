@@ -6,7 +6,7 @@ module.exports = {
   name: 'ready',
   once: true,
   async execute(client) {
-    console.log(`Bot đã đăng nhập thành công: ${client.user.tag}`);
+    console.log(`✅ Bot đã đăng nhập thành công: ${client.user.tag}`);
 
     // --- ĐĂNG KÝ SLASH COMMANDS ---
     const commands = [
@@ -90,8 +90,13 @@ module.exports = {
     // ================= TREO VOICE: CÀY MCOIN =================
     // Mỗi 1 phút, kiểm tra ai đang ở kênh voice (không phải bot)
     // Cộng random 1000-5000 Mcoin + 60 giây thời gian voice
+    let voiceTickCount = 0;
     setInterval(async () => {
+      voiceTickCount++;
       try {
+        let totalUsersProcessed = 0;
+        let totalMcoinAdded = 0;
+
         // Duyệt tất cả guild
         for (const [guildId, guild] of client.guilds.cache) {
           // Duyệt tất cả voice channel
@@ -102,16 +107,27 @@ module.exports = {
             for (const [memberId, member] of channel.members) {
               if (member.user.bot) continue; // Bỏ qua bot
 
-              // Cộng Mcoin (random 1000-5000)
+              // ✅ Cộng Mcoin (random 1000-5000)
               const baseEarned = Math.floor(Math.random() * 4001) + 1000; // 1000-5000
               const multiplier = store.getVoiceMultiplier(memberId);
               const earned = baseEarned * multiplier;
+              
               store.addTungXu(memberId, earned);
+              totalMcoinAdded += earned;
 
-              // Cộng thời gian voice (60 giây mỗi 1 phút tick)
+              // ✅ Cộng thời gian voice (60 giây mỗi 1 phút tick)
               store.addVoiceTime(memberId, 60);
+
+              totalUsersProcessed++;
+
+              // Debug log mỗi user (tắt nếu quá noisy)
+              // console.log(`  🎙️ ${member.user.username} +${earned} Mcoin (base: ${baseEarned}, x${multiplier})`);
             }
           }
+        }
+
+        if (totalUsersProcessed > 0) {
+          console.log(`🎙️ [Tick #${voiceTickCount}] Voice Mcoin: ${totalUsersProcessed} users, +${totalMcoinAdded.toLocaleString()} Mcoin tổng`);
         }
       } catch (err) {
         console.error('❌ Lỗi cộng voice Mcoin:', err);
@@ -121,10 +137,14 @@ module.exports = {
     // ================= RESET BẢNG VOICE TUẦN (Thứ 2 00:00 UTC) =================
     // Kiểm tra mỗi phút xem đã sang tuần mới chưa
     // Nếu có, phát thưởng top 1-10 và reset bảng
+    let resetCheckCount = 0;
     setInterval(async () => {
+      resetCheckCount++;
       try {
         const winners = await store.checkAndResetVoiceWeek();
         if (winners && winners.length > 0) {
+          console.log(`✅ [Reset #${resetCheckCount}] Tuần mới bắt đầu! Phát thưởng cho ${winners.length} người`);
+
           const desc = winners.map(w => {
             const hours = Math.floor(w.seconds / 3600);
             const mins = Math.floor((w.seconds % 3600) / 60);
@@ -140,17 +160,24 @@ module.exports = {
             .setTimestamp();
 
           // Gửi vào system channel của mỗi guild
+          let sentCount = 0;
           for (const [guildId, guild] of client.guilds.cache) {
             if (guild.systemChannel) {
-              guild.systemChannel.send({ embeds: [resultEmbed] }).catch(() => {});
+              try {
+                await guild.systemChannel.send({ embeds: [resultEmbed] });
+                sentCount++;
+              } catch (err) {
+                console.error(`⚠️ Không thể gửi tin vào guild ${guild.name}:`, err.message);
+              }
             }
           }
-
-          console.log('✅ Phát thưởng voice tuần và reset bảng xếp hạng');
+          console.log(`✅ Đã gửi thông báo reset voice vào ${sentCount} guild`);
         }
       } catch (err) {
         console.error('❌ Lỗi reset/phát thưởng voice:', err);
       }
     }, 60000); // Kiểm tra mỗi phút
+
+    console.log('✅ Voice loop, reset loop, slash commands đã khởi động');
   },
 };
