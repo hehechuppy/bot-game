@@ -1,3 +1,4 @@
+const OWNER_ID = '1187223186631315628';
 const economyMap = new Map();
 const dailyDataMap = new Map();
 const usedCodesMap = new Map();
