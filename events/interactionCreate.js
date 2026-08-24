@@ -101,8 +101,8 @@ module.exports = {
         const isAdmin =
           interaction.member?.permissions?.has(
             PermissionFlagsBits.Administrator
-            const isOwner = interaction.user.id === store.OWNER_ID;
-          );
+          ); 
+        const isOwner = interaction.user.id === store.OWNER_ID;
 
         // ================= TANGQUA - Tặng vật phẩm =================
 if (commandName === 'tangqua') {
