@@ -34,9 +34,9 @@ const SHOP_ITEMS = [
         name: 'X2 Tiền',
         description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
         price: 1000000,
-        uses: 5,
+        uses: 2,
         multiplier: 2,
-        dailyLimit: 5
+        dailyLimit: 2
     },
     {
         id: 3,
