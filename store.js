@@ -61,7 +61,8 @@ const SHOP_ITEMS = [
 // Tỷ lệ Lucky Box - KHÔNG hiển thị cho người dùng ở bất kỳ đâu
 const BOX_TIERS = [
     { chance: 0.50, min: -2000000, max: 500000 },
-    { chance: 0.20, min: 36, max: 36 },
+    { chance: 0.10, min: 367, max: 367 },
+    { chance: 0.10, min: 36, max: 36 },
     { chance: 0.20, min: 500000, max: 1000000 },
     { chance: 0.09, min: 1000000, max: 2000000 },
     { chance: 0.01, min: 2000000, max: 3000000 }
