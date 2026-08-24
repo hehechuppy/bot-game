@@ -2,8 +2,8 @@ const economyMap = new Map();
 const dailyDataMap = new Map();
 const usedCodesMap = new Map();
 const customCodesMap = new Map([
-    ['tanthu', { reward: 1000, expiresAt: null }],
-    ['shadowglade', { reward: 1000, expiresAt: null }]
+    ['tanthu', { reward: 10000, expiresAt: null }],
+    ['shadowglade', { reward: 10000, expiresAt: null }]
 ]);
 const leaderboardMap = new Map();
 const activeBauCuaGames = new Map();
@@ -34,9 +34,9 @@ const SHOP_ITEMS = [
         name: 'X2 Tiền',
         description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
         price: 1000000,
-        uses: 5,
+        uses: 2,
         multiplier: 2,
-        dailyLimit: 5
+        dailyLimit: 2
     },
     {
         id: 3,
@@ -46,7 +46,7 @@ const SHOP_ITEMS = [
         price: 1000000,
         uses: 1,
         refundPercent: 0.75,
-        dailyLimit: 1
+        dailyLimit: 2
     },
     {
         id: 6,
