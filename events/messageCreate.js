@@ -1,5 +1,4 @@
 // events/messageCreate.js
-
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const store = require('../store');
 const { startBauCua } = require('../games/baucua');
@@ -9,16 +8,15 @@ const { startMaSoi } = require('../games/masoi');
 const { startNoituGame, handleNoituMessage, activeGames } = require('../games/noitu');
 const { startCaoNut } = require('../games/caonut');
 
-// ================= DANH SÁCH ID ADMIN / BOT OWNER =================
-const ADMIN_IDS = ['1187223186631315628'];
-
 module.exports = {
   name: 'messageCreate',
   async execute(client, message) {
     if (message.author.bot) return;
-    const userId = message.author.id;
-    const isAdmin = ADMIN_IDS.includes(userId);
 
+    // ================= OWNER CHECK =================
+    const isOwner = message.author.id === '1187223186631315628';
+
+    const userId = message.author.id;
     const dData = store.getDailyData(userId);
     if (!dData.claimedMsg && dData.messages < 20) dData.messages++;
 
@@ -33,51 +31,7 @@ module.exports = {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // ================= LỆNH DÀNH RIÊNG CHO ADMIN =================
-    if (isAdmin) {
-      // 1. Cộng Mcoin: .addcoin <@user/ID> <số tiền>
-      if (['addcoin', 'addmoney'].includes(command)) {
-        const target = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
-        const amount = parseInt(args[1]);
-
-        if (!target || isNaN(amount)) {
-          return message.reply('❌ **Cú pháp Admin:** `.addcoin <@User/ID> <số_tiền>`');
-        }
-
-        const currentBal = store.economyMap.get(target.id) || 0;
-        store.economyMap.set(target.id, currentBal + amount);
-        return message.reply(`✅ **ADMIN:** Đã cộng **${amount.toLocaleString()} Mcoin** cho **${target.username}**! (Số dư mới: ${(currentBal + amount).toLocaleString()})`);
-      }
-
-      // 2. Set Mcoin: .setcoin <@user/ID> <số tiền>
-      if (['setcoin', 'setmoney'].includes(command)) {
-        const target = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
-        const amount = parseInt(args[1]);
-
-        if (!target || isNaN(amount) || amount < 0) {
-          return message.reply('❌ **Cú pháp Admin:** `.setcoin <@User/ID> <số_tiền_mới>`');
-        }
-
-        store.economyMap.set(target.id, amount);
-        return message.reply(`⚙️ **ADMIN:** Đã đặt số dư Mcoin của **${target.username}** thành **${amount.toLocaleString()} Mcoin**!`);
-      }
-
-      // 3. Tặng Lucky Box: .addbox <@user/ID> <số lượng>
-      if (['addbox', 'givebox'].includes(command)) {
-        const target = message.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
-        const amount = parseInt(args[1]) || 1;
-
-        if (!target) {
-          return message.reply('❌ **Cú pháp Admin:** `.addbox <@User/ID> [số_lượng]`');
-        }
-
-        store.addToInventory(target.id, 6, amount); // ID 6 là Lucky Box
-        return message.reply(`🎁 **ADMIN:** Đã tặng **${amount} Lucky Box** cho **${target.username}**!`);
-      }
-    }
-
     if (['help', 'shelp'].includes(command)) {
-      const adminHelp = isAdmin ? '\n👑 **Lệnh Admin:** `.addcoin` • `.setcoin` • `.addbox`' : '';
       const helpEmbed = new EmbedBuilder()
         .setColor('#5865F2')
         .setTitle('🤖 TRUNG TÂM HƯỚNG DẪN')
@@ -89,7 +43,7 @@ module.exports = {
           { name: '🏆 Bảng Xếp Hạng', value: '`.xh` • `.xhvoice`', inline: false },
           { name: '💼 Kho Đồ Đã Mua', value: '`.kho`', inline: false },
           { name: '💵 Cày Mcoin', value: '**Treo voice** → Nhận Mcoin tự động', inline: false },
-          { name: '❗ Luật Server SHADOW GLADE', value: '`cấm bug tiền`' + adminHelp, inline: false },
+          { name: '❗ Luật Server SHADOW GLADE', value: '`cấm bug tiền`', inline: false },
         )
         .setFooter({ text: 'Sử dụng .help để xem hướng dẫn', iconURL: client.user.displayAvatarURL() })
         .setTimestamp();
@@ -142,11 +96,11 @@ module.exports = {
       return message.reply({ embeds: [xhEmbed] });
     }
 
-    // ================= XHVOICE: BẢNG XẾP HẠNG VOICE =================
+    // ================= XHVOICE: BẢNG XẾP HẠNG VOICE (HÀNG NGÀY) =================
     if (command === 'xhvoice') {
       const top10 = store.getVoiceLeaderboard(10);
       if (top10.length === 0) {
-        return message.reply('📊 Chưa có ai treo voice tuần này!');
+        return message.reply('📊 Chưa có ai treo voice hôm nay!');
       }
 
       const rewardText = (rank) => {
@@ -166,14 +120,14 @@ module.exports = {
         desc += `${medal} <@${uid}> — ⏱️ ${hours}h${mins}m\n${rewardText(rank)}\n\n`;
       }
 
-      const nextResetMs = store.voiceWeekStart + 7 * 24 * 60 * 60 * 1000;
+      const nextResetMs = store.getStartOfCurrentDay() + 24 * 60 * 60 * 1000;
       const resetAt = Math.floor(nextResetMs / 1000);
 
       const voiceEmbed = new EmbedBuilder()
         .setColor('#00BFFF')
-        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (TUẦN NÀY)')
+        .setTitle('🎙️ BẢNG XẾP HẠNG THỜI GIAN VOICE (HÔM NAY)')
         .setDescription(desc)
-        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset tuần (Thứ 2 00:00 UTC)' })
+        .setFooter({ text: 'Top 1-10 sẽ nhận thưởng tự động khi reset ngày (00:00 UTC)' })
         .setTimestamp(nextResetMs);
 
       return message.reply({
