@@ -445,7 +445,7 @@ module.exports = {
     if (['tungxu','tx'].includes(command)) return startTungXu(client, message, store);
     if (['doanbom','bom'].includes(command)) return startDoanBom(client, message, store);
     if (['masoi','ms'].includes(command)) return startMaSoi(client, message, store);
-    if (['caonut','cn'].includes(command)) return startCaoNut(client, message, store);
+    if (['caonut','cn'].includes(command)) return startCaoNut(client, message, store, args);
 
     // ================= GAME NOITU - NỐI TỪ =================
     if (['noitu', 'nt'].includes(command)) {
