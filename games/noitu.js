@@ -79,6 +79,7 @@ async function isValidVietnameseWord(phrase) {
 
 async function startNoituGame(client, message, store) {
   const channelId = message.channelId;
+  const guildId = message.guild.id;
 
   if (activeGames.has(channelId)) {
     return message.reply('⚠️ Đã có game nối tiếng đang chạy trong kênh này!');
@@ -88,6 +89,7 @@ async function startNoituGame(client, message, store) {
   const normalizedFirst = normalizeWord(firstPhrase);
 
   const gameData = {
+    guildId,
     currentPhrase: firstPhrase,
     usedPhrases: new Set([normalizedFirst]),
     players: new Map(),
@@ -125,6 +127,7 @@ async function handleNoituMessage(client, message, store, content) {
   const gameData = activeGames.get(channelId);
   if (!gameData.isActive) return false;
 
+  const guildId = gameData.guildId || message.guild?.id;
   const userId = message.author.id;
   const username = message.author.username;
   const rawPhrase = content.trim();
@@ -185,7 +188,9 @@ async function handleNoituMessage(client, message, store, content) {
   }
   const randomReward = Math.floor(Math.random() * 2501) + 500;
   gameData.players.get(userId).points += randomReward;
-  store.addTungXu(userId, randomReward);
+
+  // ✅ Truyền guildId vào addTungXu
+  store.addTungXu(guildId, userId, randomReward);
 
   const dData = store.getDailyData(userId);
   if (!dData.claimedGame) {
@@ -233,8 +238,11 @@ async function endNoituGame(client, message, store, channelId, gameData) {
     return message.channel.send('⏱️ **Hết thời gian!** Game kết thúc.');
   }
 
+  const guildId = gameData.guildId || message.guild?.id;
   const bonusReward = 50000;
-  store.addTungXu(winner.userId, bonusReward);
+
+  // ✅ Truyền guildId vào addTungXu khi cộng thưởng cho người thắng
+  store.addTungXu(guildId, winner.userId, bonusReward);
 
   const leaderboard = Array.from(gameData.players.entries())
     .sort((a, b) => b[1].points - a[1].points)
