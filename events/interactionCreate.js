@@ -58,6 +58,7 @@ module.exports = {
 
   async execute(client, interaction) {
     try {
+      const guildId = interaction.guild ? interaction.guild.id : null;
 
       // =========================================================
       // AUTOCOMPLETE
@@ -99,83 +100,82 @@ module.exports = {
         const { commandName } = interaction;
 
         const isAdmin = interaction.member?.permissions?.has(
-  PermissionFlagsBits.Administrator
-);
-const isOwner = interaction.user.id === store.OWNER_ID;
-        
+          PermissionFlagsBits.Administrator
+        );
+        const isOwner = interaction.user.id === store.OWNER_ID;
 
         // ================= TANGQUA - Tặng vật phẩm =================
-if (commandName === 'tangqua') {
-  if (!isAdmin) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: '❌ Bạn không có quyền sử dụng lệnh này!',
-        ephemeral: true
-      })
-    );
-  }
+        if (commandName === 'tangqua') {
+          if (!isAdmin && !isOwner) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Bạn không có quyền sử dụng lệnh này!',
+                ephemeral: true
+              })
+            );
+          }
 
-  const targetUser = interaction.options.getUser('user');
-  const itemId = interaction.options.getInteger('item');
-  const quantity = interaction.options.getInteger('quantity');
+          const targetUser = interaction.options.getUser('user');
+          const itemId = interaction.options.getInteger('item');
+          const quantity = interaction.options.getInteger('quantity');
 
-  if (!targetUser) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: '❌ Vui lòng chỉ định người nhận!',
-        ephemeral: true
-      })
-    );
-  }
+          if (!targetUser) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Vui lòng chỉ định người nhận!',
+                ephemeral: true
+              })
+            );
+          }
 
-  const item = store.SHOP_ITEMS.find(i => i.id === itemId);
-  if (!item) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: `❌ Không tìm thấy vật phẩm ID ${itemId}!`,
-        ephemeral: true
-      })
-    );
-  }
+          const item = store.SHOP_ITEMS.find(i => i.id === itemId);
+          if (!item) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: `❌ Không tìm thấy vật phẩm ID ${itemId}!`,
+                ephemeral: true
+              })
+            );
+          }
 
-  if (quantity <= 0) {
-    return await safeRespond(() =>
-      interaction.reply({
-        content: '❌ Số lượng phải lớn hơn 0!',
-        ephemeral: true
-      })
-    );
-  }
+          if (quantity <= 0) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: '❌ Số lượng phải lớn hơn 0!',
+                ephemeral: true
+              })
+            );
+          }
 
-  // Thêm vật phẩm vào kho người nhận
-  store.addToInventory(targetUser.id, itemId, quantity);
+          // Thêm vật phẩm vào kho người nhận (riêng theo server hiện tại)
+          store.addToInventory(guildId, targetUser.id, itemId, quantity);
 
-  const giftEmbed = new EmbedBuilder()
-    .setColor('#FF69B4')
-    .setTitle('🎁 TẶNG VẬT PHẨM - THÀNH CÔNG')
-    .addFields(
-      { name: '🎉 Người Nhận', value: `${targetUser.username}`, inline: true },
-      { name: '📦 Vật Phẩm', value: `${item.name} (ID: ${item.id})`, inline: true },
-      { name: '📊 Số Lượng', value: `**${quantity}** cái`, inline: true },
-      { name: '💰 Giá Trị', value: `${(item.price * quantity).toLocaleString()} Mcoin`, inline: true },
-      { name: '👨‍💼 Người Tặng', value: interaction.user.username, inline: true }
-    )
-    .setFooter({ text: 'Vật phẩm đã được thêm vào kho của người nhận' })
-    .setTimestamp();
+          const giftEmbed = new EmbedBuilder()
+            .setColor('#FF69B4')
+            .setTitle('🎁 TẶNG VẬT PHẨM - THÀNH CÔNG')
+            .addFields(
+              { name: '🎉 Người Nhận', value: `${targetUser.username}`, inline: true },
+              { name: '📦 Vật Phẩm', value: `${item.name} (ID: ${item.id})`, inline: true },
+              { name: '📊 Số Lượng', value: `**${quantity}** cái`, inline: true },
+              { name: '💰 Giá Trị', value: `${(item.price * quantity).toLocaleString()} Mcoin`, inline: true },
+              { name: '👨‍💼 Người Tặng', value: interaction.user.username, inline: true }
+            )
+            .setFooter({ text: 'Vật phẩm đã được thêm vào kho của người nhận (server này)' })
+            .setTimestamp();
 
-  await safeRespond(() =>
-    interaction.reply({
-      embeds: [giftEmbed],
-      ephemeral: false
-    })
-  );
+          await safeRespond(() =>
+            interaction.reply({
+              embeds: [giftEmbed],
+              ephemeral: false
+            })
+          );
 
-  return;
-}
+          return;
+        }
 
         // ---------------- TAO CODE ----------------
         if (commandName === 'taocode') {
-          if (!isAdmin) {
+          if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -247,7 +247,7 @@ if (commandName === 'tangqua') {
 
         // ---------------- XOA CODE ----------------
         if (commandName === 'xoacode') {
-          if (!isAdmin) {
+          if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -299,7 +299,7 @@ if (commandName === 'tangqua') {
 
         // ---------------- SET BACKUP ----------------
         if (commandName === 'setbackup') {
-          if (!isAdmin) {
+          if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -325,7 +325,7 @@ if (commandName === 'tangqua') {
 
         // ---------------- BACKUP ----------------
         if (commandName === 'backup') {
-          if (!isAdmin) {
+          if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
                 content:
@@ -357,57 +357,18 @@ if (commandName === 'tangqua') {
               );
             }
 
-            const data =
-              JSON.parse(await response.text());
+            const backupJson = await response.text();
 
-            if (data.economy) {
-              store.economyMap.clear();
+            // Dùng hàm restoreBackupData() trong store.js (đã hỗ trợ đầy đủ per-guild)
+            const ok = store.restoreBackupData(backupJson);
 
-              data.economy.forEach(([k, v]) =>
-                store.economyMap.set(k, v)
+            if (!ok) {
+              return await safeRespond(() =>
+                interaction.reply({
+                  content: '❌ File lỗi hoặc không đọc được.',
+                  ephemeral: true
+                })
               );
-            }
-
-            if (data.dailyData) {
-              store.dailyDataMap.clear();
-
-              data.dailyData.forEach(([k, v]) =>
-                store.dailyDataMap.set(k, v)
-              );
-            }
-
-            if (data.usedCodes) {
-              store.usedCodesMap.clear();
-
-              data.usedCodes.forEach(([k, v]) =>
-                store.usedCodesMap.set(
-                  k,
-                  new Set(v)
-                )
-              );
-            }
-
-            if (data.customCodes) {
-              store.customCodesMap.clear();
-
-              data.customCodes.forEach(([k, v]) =>
-                store.customCodesMap.set(k, v)
-              );
-            }
-
-            if (data.leaderboard) {
-              store.leaderboardMap.clear();
-
-              data.leaderboard.forEach(([k, v]) =>
-                store.leaderboardMap.set(k, v)
-              );
-            }
-
-            if (
-              data.backupChannelId !== undefined
-            ) {
-              store.backupChannelId =
-                data.backupChannelId;
             }
 
             return await safeRespond(() =>
@@ -421,7 +382,7 @@ if (commandName === 'tangqua') {
           } catch (e) {
             console.error(e);
 
-                       return await safeRespond(() =>
+            return await safeRespond(() =>
               interaction.reply({
                 content:
                   '❌ File lỗi hoặc không đọc được.',
@@ -433,7 +394,7 @@ if (commandName === 'tangqua') {
 
         // ---------------- QUẢN LÝ SỐ DƯ ----------------
         if (commandName === 'quanli') {
-          if (!isAdmin) {
+          if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
                 content: '❌ Bạn không có quyền sử dụng lệnh này!',
@@ -447,7 +408,7 @@ if (commandName === 'tangqua') {
           const amount = interaction.options.getInteger('amount');
           const reason = interaction.options.getString('reason') || 'Không có lý do';
 
-          const before = store.economyMap.get(target.id) || 0;
+          const before = store.getBalance(guildId, target.id);
           let after, actionLabel, deltaText;
 
           if (action === 'set') {
@@ -464,11 +425,11 @@ if (commandName === 'tangqua') {
             deltaText = `-${amount.toLocaleString()} Mcoin`;
           }
 
-          store.economyMap.set(target.id, after);
+          store.setBalance(guildId, target.id, after);
 
           const logEmbed = new EmbedBuilder()
             .setColor('#00FF00')
-            .setTitle('💰 QUẢN LÝ SỐ DƯ NGƯỜI CHƠI')
+            .setTitle('💰 QUẢN LÝ SỐ DƯ NGƯỜI CHƠI (Server này)')
             .addFields(
               { name: '🛠️ Quản trị viên', value: `${interaction.user.username}`, inline: true },
               { name: '🎯 Người chơi', value: `${target.username}`, inline: true },
@@ -494,28 +455,20 @@ if (commandName === 'tangqua') {
       // BUTTONS
       // =========================================================
       if (interaction.isButton()) {
-        const customId =
-          interaction.customId;
+        const customId = interaction.customId;
 
         // =======================================================
-        // DAILY
+        // DAILY  (customId dạng: claim_daily_<guildId>_<userId>)
         // =======================================================
-        if (
-          customId.startsWith(
-            'claim_daily_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        if (customId.startsWith('claim_daily_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const targetUserId =
-            customId.split('_')[2];
+          const parts = customId.split('_');
+          // ['claim', 'daily', guildId, userId]
+          const targetGuildId = parts[2];
+          const targetUserId = parts[3];
 
-          if (
-            interaction.user.id !==
-            targetUserId
-          ) {
+          if (interaction.user.id !== targetUserId) {
             return await safeRespond(() =>
               interaction.editReply({
                 content:
@@ -524,10 +477,7 @@ if (commandName === 'tangqua') {
             );
           }
 
-          const dData =
-            store.getDailyData(
-              targetUserId
-            );
+          const dData = store.getDailyData(targetGuildId, targetUserId);
 
           if (
             dData.claimedMsg &&
@@ -561,10 +511,7 @@ if (commandName === 'tangqua') {
 
           const rewardBonus = 5000;
 
-          store.addTungXu(
-            targetUserId,
-            rewardBonus
-          );
+          store.addTungXu(targetGuildId, targetUserId, rewardBonus);
 
           return await safeRespond(() =>
             interaction.editReply({
@@ -578,230 +525,136 @@ if (commandName === 'tangqua') {
         // BAU CUA - FIX: Thêm check replied/deferred
         // =======================================================
         if (customId.startsWith('bc_')) {
-          // ✅ CHECK TRƯỚC KHI XỬ LÝ
           if (interaction.replied || interaction.deferred) {
             console.warn('⚠️ Button BC: Interaction đã được reply rồi');
             return;
           }
 
-          const gameMsgId =
-            interaction.message.id;
+          const gameMsgId = interaction.message.id;
 
-          const gameData =
-            store.activeBauCuaGames.get(
-              gameMsgId
-            );
+          const gameData = store.activeBauCuaGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Sòng đã kết thúc!',
+                content: '❌ Sòng đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const choice =
-            customId.replace(
-              'bc_',
-              ''
-            );
-
-          const userId =
-            interaction.user.id;
-
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
+          const choice = customId.replace('bc_', '');
+          const userId = interaction.user.id;
+          const currentBal = store.getBalance(guildId, userId);
 
           const modal =
             new ModalBuilder()
-              .setCustomId(
-                `modal_bc_${choice}_${gameMsgId}`
-              )
-              .setTitle(
-                `Cược ${choice.toUpperCase()}`
-              )
+              .setCustomId(`modal_bc_${choice}_${gameMsgId}`)
+              .setTitle(`Cược ${choice.toUpperCase()}`)
               .addComponents(
-                new ActionRowBuilder()
-                  .addComponents(
-                    new TextInputBuilder()
-                      .setCustomId(
-                        'bc_bet_input'
-                      )
-                      .setLabel(
-                        `Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`
-                      )
-                      .setStyle(
-                        TextInputStyle.Short
-                      )
-                      .setRequired(true)
-                  )
+                new ActionRowBuilder().addComponents(
+                  new TextInputBuilder()
+                    .setCustomId('bc_bet_input')
+                    .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`)
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true)
+                )
               );
 
-          return await safeRespond(() =>
-            interaction.showModal(
-              modal
-            )
-          );
+          return await safeRespond(() => interaction.showModal(modal));
         }
 
         // =======================================================
         // TUNG XU - FIX: Thêm check replied/deferred
         // =======================================================
-        if (
-          customId ===
-            'tx_multi_ngua' ||
-          customId ===
-            'tx_multi_sap'
-        ) {
-          // ✅ CHECK TRƯỚC KHI XỬ LÝ
+        if (customId === 'tx_multi_ngua' || customId === 'tx_multi_sap') {
           if (interaction.replied || interaction.deferred) {
             console.warn('⚠️ Button TX: Interaction đã được reply rồi');
             return;
           }
 
-          const gameMsgId =
-            interaction.message.id;
+          const gameMsgId = interaction.message.id;
 
-          const gameData =
-            store.activeTungXuGames.get(
-              gameMsgId
-            );
+          const gameData = store.activeTungXuGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Sòng đã kết thúc!',
+                content: '❌ Sòng đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
+          const currentBal = store.getBalance(guildId, userId);
 
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          const choice =
-            customId ===
-            'tx_multi_ngua'
-              ? 'ngửa'
-              : 'sấp';
+          const choice = customId === 'tx_multi_ngua' ? 'ngửa' : 'sấp';
 
           const modal =
             new ModalBuilder()
-              .setCustomId(
-                `modal_tx_multi_${choice}_${gameMsgId}`
-              )
-              .setTitle(
-                `Chọn ${choice.toUpperCase()}`
-              )
+              .setCustomId(`modal_tx_multi_${choice}_${gameMsgId}`)
+              .setTitle(`Chọn ${choice.toUpperCase()}`)
               .addComponents(
-                new ActionRowBuilder()
-                  .addComponents(
-                    new TextInputBuilder()
-                      .setCustomId(
-                        'tx_bet_input'
-                      )
-                      .setLabel(
-                        `Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`
-                      )
-                      .setStyle(
-                        TextInputStyle.Short
-                      )
-                      .setPlaceholder(
-                        'VD: 500'
-                      )
-                      .setRequired(true)
-                  )
+                new ActionRowBuilder().addComponents(
+                  new TextInputBuilder()
+                    .setCustomId('tx_bet_input')
+                    .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`)
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('VD: 500')
+                    .setRequired(true)
+                )
               );
 
-          return await safeRespond(() =>
-            interaction.showModal(
-              modal
-            )
-          );
+          return await safeRespond(() => interaction.showModal(modal));
         }
 
         // =======================================================
         // DOAN BOM JOIN - FIX: Thêm deferUpdate()
         // =======================================================
         if (customId === 'bom_join') {
-          // ✅ DEFER TRƯỚC KHI UPDATE
           await interaction.deferUpdate();
 
-          const gameId =
-            `bom_${interaction.message.id}`;
+          const gameId = `bom_${interaction.message.id}`;
 
-          const gameData =
-            store.activeDoanBomGames.get(
-              gameId
-            );
+          const gameData = store.activeDoanBomGames.get(gameId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Không tìm thấy ván Đoán Bom này!'
+                content: '❌ Không tìm thấy ván Đoán Bom này!'
               })
             );
           }
 
-          if (
-            gameData.phase !==
-            'joining'
-          ) {
+          if (gameData.phase !== 'joining') {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Ván Đoán Bom đã bắt đầu hoặc đã kết thúc!'
+                content: '❌ Ván Đoán Bom đã bắt đầu hoặc đã kết thúc!'
               })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
 
-          if (
-            gameData.participants.has(
-              userId
-            )
-          ) {
+          if (gameData.participants.has(userId)) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '⚠️ Bạn đã tham gia ván này rồi!'
+                content: '⚠️ Bạn đã tham gia ván này rồi!'
               })
             );
           }
 
-          gameData.participants.set(
-            userId,
-            interaction.user.username
-          );
+          gameData.participants.set(userId, interaction.user.username);
 
-          const playerList =
-            Array.from(
-              gameData.participants.values()
-            )
-              .map(
-                name => `• ${name}`
-              )
-              .join('\n');
+          const playerList = Array.from(gameData.participants.values())
+            .map(name => `• ${name}`)
+            .join('\n');
 
           const updatedEmbed =
             new EmbedBuilder()
               .setColor('#FF4444')
-              .setTitle(
-                '🎮 GAME ĐOÁN BOM 💣'
-              )
+              .setTitle('🎮 GAME ĐOÁN BOM 💣')
               .setDescription(
                 `Bấm nút bên dưới để tham gia!\n\n` +
                 `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
@@ -809,280 +662,177 @@ if (commandName === 'tangqua') {
               );
 
           const joinRow =
-            new ActionRowBuilder()
-              .addComponents(
-                new ButtonBuilder()
-                  .setCustomId(
-                    'bom_join'
-                  )
-                  .setLabel(
-                    '🙋 Tham gia'
-                  )
-                  .setStyle(
-                    ButtonStyle.Success
-                  )
-              );
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId('bom_join')
+                .setLabel('🙋 Tham gia')
+                .setStyle(ButtonStyle.Success)
+            );
 
           return await safeRespond(() =>
             interaction.editReply({
-              embeds: [
-                updatedEmbed
-              ],
-              components: [
-                joinRow
-              ]
+              embeds: [updatedEmbed],
+              components: [joinRow]
             })
           );
         }
 
         /*
          * KHÔNG xử lý bom_cell_* ở đây.
-         *
-         * games/doanbom.js đã có collector
-         * riêng cho các nút này.
+         * games/doanbom.js đã có collector riêng cho các nút này.
          */
 
         // =======================================================
         // MA SOI
         // =======================================================
-        if (
-          customId.startsWith(
-            'ms_'
-          )
-        ) {
-          const parts =
-            customId.split('_');
+        if (customId.startsWith('ms_')) {
+          const parts = customId.split('_');
 
-          const gameMsgId =
-            parts[
-              parts.length - 1
-            ];
+          const gameMsgId = parts[parts.length - 1];
 
-          const action =
-            parts[1];
+          const action = parts[1];
 
-          const gameData =
-            store.activeMaSoiGames.get(
-              gameMsgId
-            );
+          const gameData = store.activeMaSoiGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.reply({
-                content:
-                  '❌ Ván Ma Sói này đã kết thúc!',
+                content: '❌ Ván Ma Sói này đã kết thúc!',
                 ephemeral: true
               })
             );
           }
 
-          const userId =
-            interaction.user.id;
+          const userId = interaction.user.id;
 
           // ---------------- JOIN - FIX: Thêm deferUpdate() ----------------
           if (action === 'join') {
-            // ✅ DEFER TRƯỚC KHI UPDATE
             await interaction.deferUpdate();
 
-            if (
-              gameData.phase !==
-              'joining'
-            ) {
+            if (gameData.phase !== 'joining') {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Ván Ma Sói đã bắt đầu!'
+                  content: '❌ Ván Ma Sói đã bắt đầu!'
                 })
               );
             }
 
-            if (
-              gameData.participants.has(
-                userId
-              )
-            ) {
+            if (gameData.participants.has(userId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '⚠️ Bạn đã tham gia ván Ma Sói rồi!'
+                  content: '⚠️ Bạn đã tham gia ván Ma Sói rồi!'
                 })
               );
             }
 
-            gameData.participants.set(
-              userId,
-              interaction.user.username
-            );
+            gameData.participants.set(userId, interaction.user.username);
 
             const updatedEmbed =
               new EmbedBuilder()
                 .setColor('#8B0000')
-                .setTitle(
-                  '🐺 GAME MA SÓI 🌕'
-                )
+                .setTitle('🐺 GAME MA SÓI 🌕')
                 .setDescription(
                   `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
-                  Array.from(
-                    gameData.participants.values()
-                  )
-                    .map(
-                      n => `• ${n}`
-                    )
+                  Array.from(gameData.participants.values())
+                    .map(n => `• ${n}`)
                     .join('\n')
                 );
 
             const joinRow =
-              new ActionRowBuilder()
-                .addComponents(
-                  new ButtonBuilder()
-                    .setCustomId(
-                      `ms_join_${gameMsgId}`
-                    )
-                    .setLabel(
-                      '🙋 Tham gia'
-                    )
-                    .setStyle(
-                      ButtonStyle.Success
-                    )
-                );
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`ms_join_${gameMsgId}`)
+                  .setLabel('🙋 Tham gia')
+                  .setStyle(ButtonStyle.Success)
+              );
 
             return await safeRespond(() =>
               interaction.editReply({
-                embeds: [
-                  updatedEmbed
-                ],
-                components: [
-                  joinRow
-                ]
+                embeds: [updatedEmbed],
+                components: [joinRow]
               })
             );
           }
 
-          const myRole =
-            gameData.roles.get(
-              userId
-            );
+          const myRole = gameData.roles.get(userId);
 
           // ---------------- WOLF ----------------
           if (action === 'wolf') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'soi' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'soi' || !gameData.alive.has(userId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
+                  content: '❌ Đây không phải lượt của bạn!'
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            gameData.wolfVotes.set(
-              userId,
-              targetId
-            );
+            gameData.wolfVotes.set(userId, targetId);
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã chọn tấn công **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- GUARD ----------------
           if (action === 'guard') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'baove' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'baove' || !gameData.alive.has(userId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
+                  content: '❌ Đây không phải lượt của bạn!'
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            gameData.guardTarget =
-              targetId;
+            gameData.guardTarget = targetId;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã chọn bảo vệ **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- DOCTOR ----------------
           if (action === 'doctor') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'bacsi' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'bacsi' || !gameData.alive.has(userId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
+                  content: '❌ Đây không phải lượt của bạn!'
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            gameData.doctorTarget =
-              targetId;
+            gameData.doctorTarget = targetId;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã chọn cứu **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- SEER ----------------
           if (action === 'seer') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              myRole !== 'tientri' ||
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (myRole !== 'tientri' || !gameData.alive.has(userId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
+                  content: '❌ Đây không phải lượt của bạn!'
                 })
               );
             }
@@ -1090,41 +840,28 @@ if (commandName === 'tangqua') {
             if (gameData.seerActed) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Bạn đã soi rồi đêm nay!'
+                  content: '❌ Bạn đã soi rồi đêm nay!'
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            gameData.seerActed =
-              true;
+            gameData.seerActed = true;
 
-            const isWolf =
-              gameData.roles.get(
-                targetId
-              ) === 'soi';
+            const isWolf = gameData.roles.get(targetId) === 'soi';
 
             return await safeRespond(() =>
               interaction.editReply({
                 content:
                   `🔮 **${gameData.participants.get(targetId)}** ` +
-                  `${
-                    isWolf
-                      ? 'LÀ SÓI 🐺!'
-                      : 'không phải Sói ✅'
-                  }`
+                  `${isWolf ? 'LÀ SÓI 🐺!' : 'không phải Sói ✅'}`
               })
             );
           }
 
           // ---------------- WITCH HEAL ----------------
-          if (
-            action ===
-            'witchheal'
-          ) {
+          if (action === 'witchheal') {
             await interaction.deferUpdate();
 
             if (
@@ -1135,27 +872,20 @@ if (commandName === 'tangqua') {
             ) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Không thể dùng lúc này!',
+                  content: '❌ Không thể dùng lúc này!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            gameData.witchHealUsed =
-              true;
-
-            gameData.witchSavedVictim =
-              true;
-
-            gameData.witchActedTonight =
-              true;
+            gameData.witchHealUsed = true;
+            gameData.witchSavedVictim = true;
+            gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `💚 Đã cứu **${gameData.participants.get(gameData.wolfVictim)}**!`,
+                content: `💚 Đã cứu **${gameData.participants.get(gameData.wolfVictim)}**!`,
                 embeds: [],
                 components: []
               })
@@ -1163,10 +893,7 @@ if (commandName === 'tangqua') {
           }
 
           // ---------------- WITCH POISON MENU ----------------
-          if (
-            action ===
-            'witchpoisonmenu'
-          ) {
+          if (action === 'witchpoisonmenu') {
             await interaction.deferUpdate();
 
             if (
@@ -1176,42 +903,26 @@ if (commandName === 'tangqua') {
             ) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Không thể dùng lúc này!',
+                  content: '❌ Không thể dùng lúc này!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            const targets =
-              [...gameData.alive]
-                .filter(
-                  uid =>
-                    uid !== userId
-                );
+            const targets = [...gameData.alive].filter(uid => uid !== userId);
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '☠️ Chọn mục tiêu để đầu độc:',
+                content: '☠️ Chọn mục tiêu để đầu độc:',
                 embeds: [],
-                components:
-                  buildPlayerButtons(
-                    'ms_witchpoison',
-                    gameMsgId,
-                    gameData,
-                    targets
-                  )
+                components: buildPlayerButtons('ms_witchpoison', gameMsgId, gameData, targets)
               })
             );
           }
 
           // ---------------- WITCH POISON ----------------
-          if (
-            action ===
-            'witchpoison'
-          ) {
+          if (action === 'witchpoison') {
             await interaction.deferUpdate();
 
             if (
@@ -1221,46 +932,32 @@ if (commandName === 'tangqua') {
             ) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Không thể dùng lúc này!',
+                  content: '❌ Không thể dùng lúc này!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            if (
-              !targetId ||
-              !gameData.alive.has(
-                targetId
-              )
-            ) {
+            if (!targetId || !gameData.alive.has(targetId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Người chơi này không còn sống!',
+                  content: '❌ Người chơi này không còn sống!',
                   embeds: [],
                   components: []
                 })
               );
             }
 
-            gameData.witchPoisonUsed =
-              true;
-
-            gameData.witchPoisonTarget =
-              targetId;
-
-            gameData.witchActedTonight =
-              true;
+            gameData.witchPoisonUsed = true;
+            gameData.witchPoisonTarget = targetId;
+            gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `☠️ Đã đầu độc **${gameData.participants.get(targetId)}**!`,
+                content: `☠️ Đã đầu độc **${gameData.participants.get(targetId)}**!`,
                 embeds: [],
                 components: []
               })
@@ -1268,19 +965,14 @@ if (commandName === 'tangqua') {
           }
 
           // ---------------- WITCH SKIP ----------------
-          if (
-            action ===
-            'witchskip'
-          ) {
+          if (action === 'witchskip') {
             await interaction.deferUpdate();
 
-            gameData.witchActedTonight =
-              true;
+            gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '➡️ Bạn đã bỏ qua lượt này.',
+                content: '➡️ Bạn đã bỏ qua lượt này.',
                 embeds: [],
                 components: []
               })
@@ -1289,101 +981,63 @@ if (commandName === 'tangqua') {
 
           // ---------------- VOTE ----------------
           if (action === 'vote') {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              !gameData.alive.has(
-                userId
-              )
-            ) {
+            if (!gameData.alive.has(userId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Bạn đã bị loại, không thể vote!'
+                  content: '❌ Bạn đã bị loại, không thể vote!'
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            if (
-              !targetId ||
-              !gameData.alive.has(
-                targetId
-              )
-            ) {
+            if (!targetId || !gameData.alive.has(targetId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Người chơi này không còn sống!'
+                  content: '❌ Người chơi này không còn sống!'
                 })
               );
             }
 
-            gameData.votes.set(
-              userId,
-              targetId
-            );
+            gameData.votes.set(userId, targetId);
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `✅ Bạn đã vote treo cổ **${gameData.participants.get(targetId)}**!`
+                content: `✅ Bạn đã vote treo cổ **${gameData.participants.get(targetId)}**!`
               })
             );
           }
 
           // ---------------- HUNTER ----------------
-          if (
-            action ===
-            'hunter'
-          ) {
-            await interaction.deferReply({
-              ephemeral: true
-            });
+          if (action === 'hunter') {
+            await interaction.deferReply({ ephemeral: true });
 
-            if (
-              gameData.pendingHunterId !==
-              userId
-            ) {
+            if (gameData.pendingHunterId !== userId) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Đây không phải lượt của bạn!'
+                  content: '❌ Đây không phải lượt của bạn!'
                 })
               );
             }
 
-            const targetId =
-              parts[2];
+            const targetId = parts[2];
 
-            if (
-              !targetId ||
-              !gameData.alive.has(
-                targetId
-              )
-            ) {
+            if (!targetId || !gameData.alive.has(targetId)) {
               return await safeRespond(() =>
                 interaction.editReply({
-                  content:
-                    '❌ Người chơi này không còn sống!'
+                  content: '❌ Người chơi này không còn sống!'
                 })
               );
             }
 
-            gameData.hunterRevengeTarget =
-              targetId;
-
-            gameData.pendingHunterId =
-              null;
+            gameData.hunterRevengeTarget = targetId;
+            gameData.pendingHunterId = null;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `🏹 Bạn đã bắn hạ **${gameData.participants.get(targetId)}** trước khi ngã xuống!`
+                content: `🏹 Bạn đã bắn hạ **${gameData.participants.get(targetId)}** trước khi ngã xuống!`
               })
             );
           }
@@ -1398,122 +1052,66 @@ if (commandName === 'tangqua') {
       // MODALS
       // =========================================================
       if (interaction.isModalSubmit()) {
-        const customId =
-          interaction.customId;
+        const customId = interaction.customId;
 
         // ---------------- BAU CUA ----------------
-        if (
-          customId.startsWith(
-            'modal_bc_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        if (customId.startsWith('modal_bc_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const parts =
-            customId.split('_');
+          const parts = customId.split('_');
 
-          const choice =
-            parts[2];
+          const choice = parts[2];
 
-          const gameMsgId =
-            parts[3];
+          const gameMsgId = parts[3];
 
-          const gameData =
-            store.activeBauCuaGames.get(
-              gameMsgId
-            );
+          const gameData = store.activeBauCuaGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Sòng đã kết thúc!'
+                content: '❌ Sòng đã kết thúc!'
               })
             );
           }
 
-          const betAmount =
-            parseInt(
-              interaction.fields.getTextInputValue(
-                'bc_bet_input'
-              )
-            );
-
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
-              })
-            );
-          }
-
-          const userId =
-            interaction.user.id;
-
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          if (
-            currentBal <
-            betAmount
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Bạn không đủ số dư!'
-              })
-            );
-          }
-
-          store.economyMap.set(
-            userId,
-            currentBal -
-              betAmount
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('bc_bet_input')
           );
 
-          if (
-            !gameData.players.has(
-              userId
-            )
-          ) {
-            gameData.players.set(
-              userId,
-              {
-                username:
-                  interaction.user.username,
-                bets: []
-              }
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Tiền cược không hợp lệ!'
+              })
             );
           }
 
-          gameData.players
-            .get(userId)
-            .bets.push({
-              choice,
-              bet: betAmount
+          const userId = interaction.user.id;
+
+          const currentBal = store.getBalance(guildId, userId);
+
+          if (currentBal < betAmount) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Bạn không đủ số dư!'
+              })
+            );
+          }
+
+          store.setBalance(guildId, userId, currentBal - betAmount);
+
+          if (!gameData.players.has(userId)) {
+            gameData.players.set(userId, {
+              username: interaction.user.username,
+              bets: []
             });
+          }
 
-          store.addLeaderboardScore(
-            userId,
-            betAmount
-          );
+          gameData.players.get(userId).bets.push({ choice, bet: betAmount });
 
-          const totalBetSoFar =
-            gameData.players
-              .get(userId)
-              .bets.reduce(
-                (sum, b) =>
-                  sum + b.bet,
-                0
-              );
+          store.addLeaderboardScore(guildId, userId, betAmount);
+
+          const totalBetSoFar = gameData.players.get(userId).bets.reduce((sum, b) => sum + b.bet, 0);
 
           return await safeRespond(() =>
             interaction.editReply({
@@ -1525,224 +1123,133 @@ if (commandName === 'tangqua') {
         }
 
         // ---------------- TUNG XU ----------------
-        if (
-          customId.startsWith(
-            'modal_tx_multi_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        if (customId.startsWith('modal_tx_multi_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const parts =
-            customId.split('_');
+          const parts = customId.split('_');
 
-          const choice =
-            parts[3];
+          const choice = parts[3];
 
-          const gameMsgId =
-            parts[4];
+          const gameMsgId = parts[4];
 
-          const gameData =
-            store.activeTungXuGames.get(
-              gameMsgId
-            );
+          const gameData = store.activeTungXuGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Sòng đã kết thúc!'
+                content: '❌ Sòng đã kết thúc!'
               })
             );
           }
 
-          const betAmount =
-            parseInt(
-              interaction.fields.getTextInputValue(
-                'tx_bet_input'
-              )
-            );
-
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
-              })
-            );
-          }
-
-          const userId =
-            interaction.user.id;
-
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
-
-          const oldBet =
-            gameData.players.has(
-              userId
-            )
-              ? gameData.players.get(
-                  userId
-                ).bet
-              : 0;
-
-          const netNeeded =
-            betAmount -
-            oldBet;
-
-          if (
-            currentBal <
-            netNeeded
-          ) {
-            return await safeRespond(() =>
-              interaction.editReply({
-                content:
-                  '❌ Không đủ số dư!'
-              })
-            );
-          }
-
-          store.economyMap.set(
-            userId,
-            currentBal -
-              netNeeded
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('tx_bet_input')
           );
 
-          gameData.players.set(
-            userId,
-            {
-              username:
-                interaction.user.username,
-              choice,
-              bet: betAmount
-            }
-          );
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Tiền cược không hợp lệ!'
+              })
+            );
+          }
+
+          const userId = interaction.user.id;
+
+          const currentBal = store.getBalance(guildId, userId);
+
+          const oldBet = gameData.players.has(userId) ? gameData.players.get(userId).bet : 0;
+
+          const netNeeded = betAmount - oldBet;
+
+          if (currentBal < netNeeded) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Không đủ số dư!'
+              })
+            );
+          }
+
+          store.setBalance(guildId, userId, currentBal - netNeeded);
+
+          gameData.players.set(userId, {
+            username: interaction.user.username,
+            choice,
+            bet: betAmount
+          });
 
           if (netNeeded > 0) {
-            store.addLeaderboardScore(
-              userId,
-              netNeeded
-            );
+            store.addLeaderboardScore(guildId, userId, netNeeded);
           }
 
           return await safeRespond(() =>
             interaction.editReply({
-              content:
-                `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
+              content: `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
             })
           );
         }
 
         // ---------------- CAO NUT ----------------
-        if (
-          customId.startsWith(
-            'cn_bet_'
-          )
-        ) {
-          await interaction.deferReply({
-            ephemeral: true
-          });
+        if (customId.startsWith('cn_bet_')) {
+          await interaction.deferReply({ ephemeral: true });
 
-          const parts =
-            customId.split('_');
+          const parts = customId.split('_');
 
-          const gameMsgId =
-            parts[2];
+          const gameMsgId = parts[2];
 
-          const userId =
-            parts[3];
+          const userId = parts[3];
 
-          const gameData =
-            store.activeCaoNutGames.get(
-              gameMsgId
-            );
+          const gameData = store.activeCaoNutGames.get(gameMsgId);
 
           if (!gameData) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Ván đã kết thúc!'
+                content: '❌ Ván đã kết thúc!'
               })
             );
           }
 
-          const betAmount =
-            parseInt(
-              interaction.fields.getTextInputValue(
-                'cn_bet_amount'
-              )
-            );
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('cn_bet_amount')
+          );
 
-          if (
-            isNaN(betAmount) ||
-            betAmount <= 0
-          ) {
+          if (isNaN(betAmount) || betAmount <= 0) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Tiền cược không hợp lệ!'
+                content: '❌ Tiền cược không hợp lệ!'
               })
             );
           }
 
           // Check if bet equals required amount
-          if (
-            betAmount !==
-            gameData.betAmount
-          ) {
+          if (betAmount !== gameData.betAmount) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  `❌ Tiền cược phải bằng **${gameData.betAmount.toLocaleString()} Mcoin**!`
+                content: `❌ Tiền cược phải bằng **${gameData.betAmount.toLocaleString()} Mcoin**!`
               })
             );
           }
 
-          const currentBal =
-            store.economyMap.get(
-              userId
-            ) || 0;
+          const currentBal = store.getBalance(guildId, userId);
 
-          if (
-            currentBal <
-            betAmount
-          ) {
+          if (currentBal < betAmount) {
             return await safeRespond(() =>
               interaction.editReply({
-                content:
-                  '❌ Bạn không đủ số dư!'
+                content: '❌ Bạn không đủ số dư!'
               })
             );
           }
 
           // Deduct the bet immediately
-          store.economyMap.set(
-            userId,
-            currentBal -
-              betAmount
-          );
+          store.setBalance(guildId, userId, currentBal - betAmount);
 
-          gameData.players.set(
-            userId,
-            {
-              username:
-                interaction.user.username,
-              bet: betAmount,
-              cards: []
-            }
-          );
+          gameData.players.set(userId, {
+            username: interaction.user.username,
+            bet: betAmount,
+            cards: []
+          });
 
-          store.addLeaderboardScore(
-            userId,
-            betAmount
-          );
+          store.addLeaderboardScore(guildId, userId, betAmount);
 
           return await safeRespond(() =>
             interaction.editReply({
@@ -1756,20 +1263,12 @@ if (commandName === 'tangqua') {
       }
 
     } catch (err) {
-      if (
-        err?.code === 10062 ||
-        err?.code === 40060
-      ) {
-        console.warn(
-          `⚠️ Bỏ qua lỗi interaction ${err.code}`
-        );
+      if (err?.code === 10062 || err?.code === 40060) {
+        console.warn(`⚠️ Bỏ qua lỗi interaction ${err.code}`);
         return;
       }
 
-      console.error(
-        '❌ Lỗi xử lý interactionCreate:',
-        err
-      );
+      console.error('❌ Lỗi xử lý interactionCreate:', err);
     }
   }
 };
