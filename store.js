@@ -1,21 +1,20 @@
-const { EmbedBuilder } = require('discord.js');
+const OWNER_ID = '1187223186631315628';
 
-// ================= HELPER: TẠO KEY THEO SERVER =================
-// Mọi map dữ liệu (tiền, kho, streak, daily...) đều dùng key dạng "guildId_userId"
-// để tách riêng dữ liệu giữa các server khác nhau.
+// ================= HELPER: KEY THEO SERVER =================
+// Mọi Map dữ liệu người chơi giờ dùng key "guildId_userId" để tách riêng theo từng server.
 function gKey(guildId, userId) {
-    if (!guildId) throw new Error('gKey() thiếu guildId - phải truyền message.guild.id hoặc interaction.guild.id');
+    if (!guildId) throw new Error('gKey() thiếu guildId!');
     return `${guildId}_${userId}`;
 }
 
 const economyMap = new Map(); // "guildId_userId" -> soTien
-const dailyDataMap = new Map(); // "guildId_userId" -> data
-const usedCodesMap = new Map(); // "guildId_userId" -> Set(code)
+const dailyDataMap = new Map();
+const usedCodesMap = new Map();
 const customCodesMap = new Map([
-    ['tanthu', { reward: 1000, expiresAt: null }],
-    ['shadowglade', { reward: 1000, expiresAt: null }]
-]); // Mã code vẫn dùng chung cho tất cả server (có thể tách riêng nếu muốn)
-const leaderboardMap = new Map(); // "guildId_userId" -> diem
+    ['tanthu', { reward: 10000, expiresAt: null }],
+    ['shadowglade', { reward: 10000, expiresAt: null }]
+]);
+const leaderboardMap = new Map();
 const activeBauCuaGames = new Map();
 const activeTungXuGames = new Map();
 const activeDoanBomGames = new Map();
@@ -24,17 +23,10 @@ const activeCaoNutGames = new Map();
 let backupChannelId = '1492795870012379147';
 
 // ================= VOICE LEADERBOARD (RESET HÀNG NGÀY, THEO TỪNG SERVER) =================
-const voiceLeaderboardMap = new Map(); // "guildId_userId" -> { totalSeconds, startDay }
+const voiceLeaderboardMap = new Map(); // "guildId_userId" -> { totalSeconds, startDay, guildId, userId }
+let voiceDayStart = new Date().setHours(0, 0, 0, 0);
 
-function getStartOfCurrentDay() {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return now.getTime();
-}
-
-let voiceDayStart = getStartOfCurrentDay();
-
-// ================= SHOP / VẬT PHẨM (dùng chung cấu hình, không cần tách theo server) =================
+// ================= SHOP / VẬT PHẨM =================
 const SHOP_ITEMS = [
     {
         id: 1,
@@ -62,6 +54,7 @@ const SHOP_ITEMS = [
         description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại 75% số tiền đã thua (1 lần).',
         price: 1000000,
         uses: 1,
+        refundPercent: 0.75,
         dailyLimit: 2
     },
     {
@@ -74,9 +67,11 @@ const SHOP_ITEMS = [
     }
 ];
 
+// Tỷ lệ Lucky Box - KHÔNG hiển thị cho người dùng ở bất kỳ đâu
 const BOX_TIERS = [
     { chance: 0.50, min: -2000000, max: 500000 },
-    { chance: 0.20, min: 36, max: 36 },
+    { chance: 0.10, min: 367, max: 367 },
+    { chance: 0.10, min: 36, max: 36 },
     { chance: 0.20, min: 500000, max: 1000000 },
     { chance: 0.09, min: 1000000, max: 2000000 },
     { chance: 0.01, min: 2000000, max: 3000000 }
@@ -99,11 +94,10 @@ const inventoryMap = new Map();       // "guildId_userId" -> Map<itemId, soLuong
 const activeBuffsMap = new Map();     // "guildId_userId" -> { itemId, usesLeft, multiplier }
 const activeInsuranceMap = new Map(); // "guildId_userId" -> soLuotBaoHiemConLai
 const activeVoiceBuffsMap = new Map();// "guildId_userId" -> thoiDiemHetHan (timestamp ms)
-const streakMap = new Map();          // "guildId_userId" -> { streakDay, lastCheckInDate }
+const streakMap = new Map();          // "guildId_userId" -> { streakDay: 0-7, lastCheckInDate }
 
-const DIEMDANH_REWARDS = [50000, 50000, 100000, 50000, 100000, 100000, 300000];
+const DIEMDANH_REWARDS = [50000, 50000, 100000, 50000, 100000, 100000, 300000]; // ngày 1..7
 
-// ================= INVENTORY =================
 function addToInventory(guildId, userId, itemId, amount) {
     const key = gKey(guildId, userId);
     if (!inventoryMap.has(key)) inventoryMap.set(key, new Map());
@@ -145,7 +139,7 @@ function openBoxes(guildId, userId, itemId, count) {
     for (let i = 0; i < openCount; i++) {
         const amount = rollBoxReward();
         const before = economyMap.get(key) || 0;
-        const after = Math.max(0, before + amount);
+        const after = Math.max(0, before + amount); // không để số dư âm
         const actualDelta = after - before;
         economyMap.set(key, after);
         rewards.push(actualDelta);
@@ -155,7 +149,6 @@ function openBoxes(guildId, userId, itemId, count) {
     return { success: true, item, openCount, rewards, total: totalApplied };
 }
 
-// ================= BUFFS =================
 function activateWinBuff(guildId, userId, itemId, multiplier, uses) {
     const key = gKey(guildId, userId);
     const existing = activeBuffsMap.get(key);
@@ -167,6 +160,7 @@ function activateWinBuff(guildId, userId, itemId, multiplier, uses) {
     return activeBuffsMap.get(key);
 }
 
+// Gọi đúng 1 lần mỗi ván (Bầu Cua/Tung Xu) cho mỗi người chơi, BẤT KỂ thắng hay thua.
 function consumeBuffIfActive(guildId, userId) {
     const key = gKey(guildId, userId);
     const buff = activeBuffsMap.get(key);
@@ -188,6 +182,7 @@ function activateInsurance(guildId, userId, uses) {
     return activeInsuranceMap.get(key);
 }
 
+// Chỉ tiêu lượt bảo hiểm khi THUA (lossAmount > 0). Trả về số tiền cần hoàn lại (0 nếu không áp dụng).
 function consumeInsuranceIfLoss(guildId, userId, lossAmount) {
     if (lossAmount <= 0) return 0;
     const key = gKey(guildId, userId);
@@ -195,7 +190,7 @@ function consumeInsuranceIfLoss(guildId, userId, lossAmount) {
     if (uses <= 0) return 0;
     const remaining = uses - 1;
     if (remaining <= 0) activeInsuranceMap.delete(key); else activeInsuranceMap.set(key, remaining);
-    return Math.floor(lossAmount * 0.75); // Hoàn 75%
+    return Math.floor(lossAmount * 0.75); // Hoàn lại 75%
 }
 
 function activateVoiceBuff(guildId, userId, durationMs) {
@@ -219,7 +214,6 @@ function getVoiceMultiplier(guildId, userId) {
     return 2;
 }
 
-// ================= DAILY DATA =================
 function getDailyData(guildId, userId) {
     const key = gKey(guildId, userId);
     const today = new Date().toDateString();
@@ -234,8 +228,8 @@ function getDailyData(guildId, userId) {
             claimedGame: false,
             claimedEarned: false,
             lastDiemDanh: null,
-            itemUses: {},
-            itemBuys: {}
+            itemBuys: {},
+            itemUses: {}
         };
         dailyDataMap.set(key, data);
     }
@@ -268,7 +262,6 @@ function recordItemBuy(guildId, userId, itemId) {
     dData.itemBuys[itemId] = (dData.itemBuys[itemId] || 0) + 1;
 }
 
-// ================= TIỀN =================
 function addTungXu(guildId, userId, amount) {
     const key = gKey(guildId, userId);
     const current = economyMap.get(key) || 0;
@@ -337,7 +330,9 @@ function processDiemDanh(guildId, userId) {
     return { success: true, streakDay: dayIndex + 1, reward, bonusBox };
 }
 
-// ================= VOICE LEADERBOARD (THEO TỪNG SERVER) =================
+// ================= VOICE LEADERBOARD FUNCTIONS (THEO TỪNG SERVER) =================
+
+// Mỗi 60 giây, gọi hàm này để cộng thời gian voice
 function addVoiceTime(guildId, userId, seconds) {
     const key = gKey(guildId, userId);
     if (!voiceLeaderboardMap.has(key)) {
@@ -347,7 +342,7 @@ function addVoiceTime(guildId, userId, seconds) {
     data.totalSeconds += seconds;
 }
 
-// Lấy top N của MỘT server cụ thể (hôm nay)
+// Lấy top N người của MỘT server (hôm nay)
 function getVoiceLeaderboard(guildId, topN = 50) {
     const sorted = Array.from(voiceLeaderboardMap.entries())
         .filter(([_, data]) => data.startDay === voiceDayStart && data.guildId === guildId)
@@ -358,28 +353,48 @@ function getVoiceLeaderboard(guildId, topN = 50) {
     return sorted;
 }
 
-// Reset + phát thưởng CHO TỪNG SERVER riêng biệt.
-// Trả về Map<guildId, winners[]> để nơi gọi (ready.js) tự gửi thông báo vào đúng server.
-async function checkAndResetVoiceDaily() {
-    const currentDayStart = getStartOfCurrentDay();
+// Tính timestamp reset ngày mai (00:00 AM ngày hôm sau)
+function getNextResetTimestamp() {
+    const now = new Date();
+    const nextReset = new Date(now);
+    nextReset.setDate(nextReset.getDate() + 1);
+    nextReset.setHours(0, 0, 0, 0);
+    return nextReset.getTime();
+}
 
-    if (voiceDayStart >= currentDayStart) {
-        return null; // Chưa sang ngày mới
+// Kiểm tra xem đã sang ngày mới chưa. Nếu có:
+// 1. Phát thưởng top 1-10 CHO TỪNG SERVER riêng biệt
+// 2. Reset toàn bộ bảng xếp hạng
+// 3. Trả về Map<guildId, winners[]> (để ready.js gửi embed vào đúng từng server)
+async function checkAndResetVoiceDay() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStart = today.getTime();
+
+    // Chưa sang ngày mới
+    if (voiceDayStart >= todayStart) {
+        return null;
     }
 
-    // Gom danh sách guildId đang có dữ liệu voice hôm qua
+    // Gom danh sách các guildId có dữ liệu voice của "ngày cũ"
     const guildIds = new Set();
     for (const [, data] of voiceLeaderboardMap) {
         if (data.startDay === voiceDayStart) guildIds.add(data.guildId);
     }
 
-    const resultByGuild = new Map();
+    if (guildIds.size === 0) {
+        voiceDayStart = todayStart;
+        return null;
+    }
 
     const rewardStructure = {
         1: { mcoin: 50000, box: 2 },
         2: { mcoin: 25000, box: 1 },
         3: { mcoin: 10000, box: 0 },
+        // 4-10: 367 Mcoin
     };
+
+    const resultByGuild = new Map();
 
     for (const guildId of guildIds) {
         const top10 = getVoiceLeaderboard(guildId, 10);
@@ -399,14 +414,13 @@ async function checkAndResetVoiceDaily() {
         resultByGuild.set(guildId, winners);
     }
 
-    // Reset toàn bộ bảng voice cho ngày mới
+    // Reset bảng xếp hạng cho ngày mới (toàn bộ server)
     voiceLeaderboardMap.clear();
-    voiceDayStart = currentDayStart;
+    voiceDayStart = todayStart;
 
     return resultByGuild; // Map<guildId, winners[]>
 }
 
-// ================= BACKUP / RESTORE =================
 function generateBackupData() {
     return JSON.stringify({
         economy: Array.from(economyMap.entries()),
@@ -469,6 +483,7 @@ function restoreBackupData(backupJson) {
 }
 
 module.exports = {
+    OWNER_ID,
     gKey,
     economyMap,
     dailyDataMap,
@@ -511,10 +526,9 @@ module.exports = {
     addLeaderboardScore,
     addVoiceTime,
     getVoiceLeaderboard,
-    checkAndResetVoiceDaily,
-    getStartOfCurrentDay,
+    checkAndResetVoiceDay,
+    getNextResetTimestamp,
     generateBackupData,
     restoreBackupData,
-    backupChannelId,
-    voiceDayStart
+    backupChannelId
 };
