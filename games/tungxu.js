@@ -2,6 +2,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 async function startTungXu(client, message, store) {
+  const guildId = message.guild.id;
+
   const txEmbed = new EmbedBuilder()
     .setColor('#FEE75C')
     .setTitle('🪙 SÒNG TUNG XU NHIỀU NGƯỜI CHƠI 🪙')
@@ -13,7 +15,7 @@ async function startTungXu(client, message, store) {
   );
 
   const gameMsg = await message.reply({ embeds: [txEmbed], components: [row] });
-  store.activeTungXuGames.set(gameMsg.id, { players: new Map() });
+  store.activeTungXuGames.set(gameMsg.id, { guildId, players: new Map() });
 
   const collector = gameMsg.createMessageComponentCollector({ time: 20000 });
   collector.on('end', async () => {
@@ -39,13 +41,15 @@ async function startTungXu(client, message, store) {
           reward *= multiplier;
           buffTag = ` 🔥(x${multiplier})`;
         }
-        store.addTungXu(pId, reward);
+        // ✅ Truyền guildId vào addTungXu khi thắng
+        store.addTungXu(guildId, pId, reward);
         summary.push(`• **${data.username}** thắng +${reward.toLocaleString()} Mcoin${buffTag}`);
       } else {
         let insuranceTag = '';
         const refund = store.consumeInsuranceIfLoss(pId, data.bet);
         if (refund > 0) {
-          store.addTungXu(pId, refund);
+          // ✅ Truyền guildId vào addTungXu khi được hoàn tiền bảo hiểm
+          store.addTungXu(guildId, pId, refund);
           insuranceTag = ` 🛡️(hoàn ${refund.toLocaleString()})`;
         }
         const netLoss = data.bet - refund;
