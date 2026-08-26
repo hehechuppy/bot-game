@@ -19,6 +19,7 @@ const MASCOTS = [
 ];
 
 async function startBauCua(client, message, store) {
+  const guildId = message.guild.id;
   const channelId = message.channelId;
 
   // 1. Tạo Embed sòng cược công khai
@@ -88,7 +89,7 @@ async function startBauCua(client, message, store) {
       });
 
       const pId = submitted.user.id;
-      const userBal = store.economyMap.get(pId) || 0;
+      const userBal = store.getBalance(guildId, pId);
       let rawAmount = submitted.fields.getTextInputValue('bet_amount').trim().toLowerCase();
       let bet = 0;
 
@@ -107,7 +108,7 @@ async function startBauCua(client, message, store) {
       }
 
       // Trừ tiền cược ngay lập tức
-      store.economyMap.set(pId, userBal - bet);
+      store.addTungXu(guildId, pId, -bet);
 
       // Lưu thông tin đặt cược của người chơi
       const gameData = store.activeBauCuaGames.get(gameMsg.id);
@@ -165,9 +166,9 @@ async function startBauCua(client, message, store) {
     setTimeout(async () => {
       const summary = [];
 
-      // Logic gốc của bạn: Xử lý Thắng / Thua / Buff / Bảo hiểm
+      // Logic xử lý Thắng / Thua / Buff / Bảo hiểm
       gameData.players.forEach((data, pId) => {
-        const pDaily = store.getDailyData(pId);
+        const pDaily = store.getDailyData(guildId, pId);
         if (pDaily) pDaily.games++;
 
         let totalWin = 0;
@@ -190,7 +191,7 @@ async function startBauCua(client, message, store) {
         });
 
         // Buff nhân tiền thắng (x2/x3/x5)
-        const multiplier = store.consumeBuffIfActive(pId);
+        const multiplier = store.consumeBuffIfActive(guildId, pId);
         let buffTag = '';
         if (multiplier > 1 && totalWin > 0) {
           totalWin *= multiplier;
@@ -202,15 +203,15 @@ async function startBauCua(client, message, store) {
 
         // Bảo hiểm thua
         if (net < 0) {
-          const refund = store.consumeInsuranceIfLoss(pId, -net);
+          const refund = store.consumeInsuranceIfLoss(guildId, pId, -net);
           if (refund > 0) {
-            store.addTungXu(pId, refund);
+            store.addTungXu(guildId, pId, refund);
             net += refund;
             insuranceTag = ` 🛡️(hoàn ${refund.toLocaleString()})`;
           }
         }
 
-        if (totalWin > 0) store.addTungXu(pId, totalWin);
+        if (totalWin > 0) store.addTungXu(guildId, pId, totalWin);
 
         const netStr = net >= 0 ? `+${net.toLocaleString()}` : `${net.toLocaleString()}`;
         summary.push(`• **${data.username}**: ${betLines.join(', ')} ➔ **${netStr} Mcoin**${buffTag}${insuranceTag}`);
