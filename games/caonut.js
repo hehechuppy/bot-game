@@ -85,10 +85,12 @@ function buildJoinRow() {
   );
 }
 
-async function startCaoNut(client, message, store, betAmount) {
+async function startCaoNut(client, message, store, rawBetAmount) {
   const guildId = message.guild.id;
+  // 💡 Tự động ép kiểu về số nguyên đề phòng trường hợp truyền dạng string
+  const betAmount = parseInt(rawBetAmount, 10);
 
-  if (!Number.isInteger(betAmount) || betAmount <= 0) {
+  if (isNaN(betAmount) || betAmount <= 0) {
     return message.reply('❌ Tiền cược phải là số nguyên lớn hơn 0!');
   }
 
