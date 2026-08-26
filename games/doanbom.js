@@ -21,6 +21,8 @@ async function safeRespond(fn) {
 }
 
 async function startDoanBom(client, message, store) {
+  const guildId = message.guild.id;
+
   const joinEmbed = new EmbedBuilder()
     .setColor('#FF4444')
     .setTitle('🎮 GAME ĐOÁN BOM 💣')
@@ -34,6 +36,7 @@ async function startDoanBom(client, message, store) {
 
   const gameId = `bom_${gameMsg.id}`;
   store.activeDoanBomGames.set(gameId, {
+    guildId,
     phase: 'joining',
     participants: new Map(),
     alive: new Set(),
@@ -122,6 +125,7 @@ async function resolveRound(gameId, store) {
   const gameData = store.activeDoanBomGames.get(gameId);
   if (!gameData) return;
 
+  const guildId = gameData.guildId;
   const bombIndex = gameData.bombIndex;
   const eliminated = [];
 
@@ -177,7 +181,9 @@ async function resolveRound(gameId, store) {
       gameData.pot += 10000;
       const winnerId = Array.from(gameData.alive)[0];
       const winnerName = gameData.participants.get(winnerId);
-      store.addTungXu(winnerId, gameData.pot);
+      
+      // ✅ Cập nhật truyền guildId vào addTungXu
+      store.addTungXu(guildId, winnerId, gameData.pot);
 
       const winEmbed = new EmbedBuilder()
         .setColor('#FFD700')
