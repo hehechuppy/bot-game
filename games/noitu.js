@@ -239,7 +239,9 @@ async function endNoituGame(client, message, store, channelId, gameData) {
   }
 
   const guildId = gameData.guildId || message.guild?.id;
-  const bonusReward = 50000;
+  
+  // ⚡ Đã giảm thưởng từ 50,000 xuống 10,000 Mcoin
+  const bonusReward = 10000;
 
   // ✅ Truyền guildId vào addTungXu khi cộng thưởng cho người thắng
   store.addTungXu(guildId, winner.userId, bonusReward);
