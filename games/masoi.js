@@ -14,7 +14,7 @@ const VOTE_TIME = 20000;
 const WIN_REWARD = 50000;
 
 const ROLE_META = {
-  soi:     { label: 'Sói 🐺', faction: 'soi', color: '#8B0000', icon: 'https://cdn-icons-png.flaticon.com/512/3504/3504313.png' },
+  soi:      { label: 'Sói 🐺', faction: 'soi', color: '#8B0000', icon: 'https://cdn-icons-png.flaticon.com/512/3504/3504313.png' },
   danlang: { label: 'Dân Làng 🧑‍🌾', faction: 'dan', color: '#2ECC71', icon: 'https://cdn-icons-png.flaticon.com/512/1995/1995515.png' },
   tientri: { label: 'Tiên Tri 🔮', faction: 'dan', color: '#9B59B6', icon: 'https://cdn-icons-png.flaticon.com/512/2097/2097276.png' },
   bacsi:   { label: 'Bác Sĩ 💊', faction: 'dan', color: '#2ECC71', icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966327.png' },
@@ -72,6 +72,8 @@ async function sendDM(client, userId, payload, fallbackChannel, username) {
 }
 
 async function startMaSoi(client, message, store) {
+  const guildId = message.guild.id;
+
   const joinEmbed = new EmbedBuilder()
     .setColor('#8B0000')
     .setTitle('🐺 SÒNG MA SÓI — CỬA NGHỈ MỜ ẢO 🌕')
@@ -93,6 +95,7 @@ async function startMaSoi(client, message, store) {
   });
 
   store.activeMaSoiGames.set(gameMsg.id, {
+    guildId,
     phase: 'joining',
     participants: new Map(),
     roles: new Map(),
@@ -461,8 +464,11 @@ async function checkWinAndAnnounce(gameMsg, store) {
 
   if (!winningFaction) return false;
 
+  const guildId = gameData.guildId;
   const winners = [...gameData.participants.keys()].filter(uid => ROLE_META[gameData.roles.get(uid)].faction === winningFaction);
-  winners.forEach(uid => store.addTungXu(uid, WIN_REWARD));
+  
+  // ✅ Cập nhật truyền guildId vào addTungXu
+  winners.forEach(uid => store.addTungXu(guildId, uid, WIN_REWARD));
 
   const roleReveal = [...gameData.participants.entries()].map(([uid, name]) => {
     const role = gameData.roles.get(uid);
