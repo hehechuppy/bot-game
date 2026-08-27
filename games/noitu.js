@@ -1,5 +1,5 @@
-// games/noitu.js - Game Nối Từ Tiếng Việt Chuẩn (Sử dụng fetch gốc)
-const { EmbedBuilder } = require('discord.js');
+// games/noitu.js - Game Nối Từ với Button Tham Gia
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const WORD_LIST = [
   'mùa xuân', 'xuân thì', 'thì thầm', 'thầm lặng', 'lặng yên', 'yên tĩnh', 'tĩnh mơ', 'mơ mộng',
@@ -47,11 +47,9 @@ function getFirstSyllable(phrase) {
   return words[0];
 }
 
-// Kiểm tra từ điển dùng fetch native
 async function isValidVietnameseWord(phrase) {
   const words = phrase.split(/\s+/);
   
-  // Lọc ký tự dị (j, w, z, f)
   const invalidChars = /[jwzf]/i;
   for (const word of words) {
     if (invalidChars.test(word)) return false;
@@ -70,7 +68,7 @@ async function isValidVietnameseWord(phrase) {
       }
     }
   } catch (err) {
-    // Nếu API timeout thì cho qua bước check từ điển
+    // API timeout
   }
 
   const vietnameseSyllableRegex = /^[a-áàảãạăắằẳẵặâấầẩẫậeéèẻẽẹêếềểễệiíìỉĩịoóòỏõọôốồổỗộơớờởỡợuúùủũụưứừửữựyýỳỷỹỵdđbchghkhngnhpqrtvxs]*$/i;
@@ -85,39 +83,117 @@ async function startNoituGame(client, message, store) {
     return message.reply('⚠️ Đã có game nối tiếng đang chạy trong kênh này!');
   }
 
-  const firstPhrase = getRandomPhrase();
-  const normalizedFirst = normalizeWord(firstPhrase);
-
   const gameData = {
     guildId,
-    currentPhrase: firstPhrase,
-    usedPhrases: new Set([normalizedFirst]),
-    players: new Map(),
+    phase: 'joining', // 'joining' hoặc 'playing'
+    messageId: null,
+    starterId: message.author.id,
+    starterName: message.author.username,
+    firstPhrase: getRandomPhrase(),
+    currentPhrase: null,
+    usedPhrases: new Set(),
+    joinedPlayers: new Map(), // userId -> { name, joined_at }
+    players: new Map(), // userId -> { name, points }
     lastPlayerId: null,
     isActive: true,
-    startTime: Date.now()
+    startTime: Date.now(),
+    joinTimeout: null,
+    gameTimeout: null
   };
 
   activeGames.set(channelId, gameData);
 
-  const startSyllable = getLastSyllable(firstPhrase);
-  const startEmbed = new EmbedBuilder()
+  // Gửi embed tham gia với nút button
+  const joinEmbed = new EmbedBuilder()
     .setColor('#00FF00')
-    .setTitle('🎮 GAME NỐI TIẾNG - BẮT ĐẦU')
-    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nLuật chơi:\n• Từ nối phải là **từ 2 tiếng có nghĩa trong Tiếng Việt**\n• Mỗi lượt có **15 giây** để trả lời\n• **Không thể trả lời 2 lần liên tiếp**\n• **Không dùng từ điệp** (VD: định định, kín kín)\n• Nhập sai chỉ bị nhắc nhở, game dừng khi **hết 15 giây**!`)
-    .setFooter({ text: `Hãy gõ cụm từ (2 tiếng có nghĩa) bắt đầu bằng: ${startSyllable}` })
+    .setTitle('🎮 GAME NỐI TIẾNG - TÌMU KIẾM NGƯỜI CHƠI')
+    .setDescription(
+      `👤 **Người tạo:** ${message.author.username}\n\n` +
+      `📋 **Luật chơi:**\n` +
+      `• Từ nối phải là **từ 2 tiếng có nghĩa** trong Tiếng Việt\n` +
+      `• Mỗi lượt có **15 giây** để trả lời\n` +
+      `• **Không thể trả lời 2 lần liên tiếp**\n` +
+      `• **Không dùng từ điệp** (VD: định định, kín kín)\n` +
+      `• Nhập sai chỉ bị nhắc nhở, game dừng khi **hết 15 giây**!\n\n` +
+      `👥 **Người đã tham gia (0):**\n_Chưa có ai_`
+    )
+    .setFooter({ text: 'Bấm nút dưới để tham gia game!' })
     .setTimestamp();
 
-  await message.reply({ embeds: [startEmbed] });
+  const joinRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`noitu_join_${channelId}`)
+      .setLabel('🙋 Tham Gia')
+      .setStyle(ButtonStyle.Success)
+  );
 
-  gameData.timeout = setTimeout(async () => {
-    if (activeGames.has(channelId) && gameData.isActive) {
-      gameData.isActive = false;
-      endNoituGame(client, message, store, channelId, gameData);
+  const reply = await message.reply({ embeds: [joinEmbed], components: [joinRow] });
+  gameData.messageId = reply.id;
+
+  // Sau 30 giây tự động bắt đầu nếu có 2+ người
+  gameData.joinTimeout = setTimeout(async () => {
+    if (activeGames.has(channelId) && gameData.phase === 'joining') {
+      if (gameData.joinedPlayers.size >= 2) {
+        await startActualGame(client, message, store, channelId, gameData);
+      } else {
+        gameData.isActive = false;
+        activeGames.delete(channelId);
+        try {
+          await reply.edit({
+            content: '❌ **Hủy Game:** Không đủ người chơi (cần tối thiểu 2 người)',
+            embeds: [],
+            components: []
+          });
+        } catch (e) {}
+      }
     }
-  }, 15 * 1000);
+  }, 30 * 1000);
 
   return gameData;
+}
+
+async function startActualGame(client, message, store, channelId, gameData) {
+  gameData.phase = 'playing';
+  clearTimeout(gameData.joinTimeout);
+
+  // Chuẩn bị dữ liệu game
+  gameData.currentPhrase = gameData.firstPhrase;
+  gameData.usedPhrases.add(normalizeWord(gameData.firstPhrase));
+
+  // Khởi tạo players từ joinedPlayers
+  for (const [userId, data] of gameData.joinedPlayers) {
+    gameData.players.set(userId, { name: data.name, points: 0 });
+  }
+
+  const startSyllable = getLastSyllable(gameData.firstPhrase);
+  const playerList = Array.from(gameData.joinedPlayers.values())
+    .map(p => `• ${p.name}`)
+    .join('\n');
+
+  const startEmbed = new EmbedBuilder()
+    .setColor('#FFD700')
+    .setTitle('🎮 GAME NỐI TIẾNG - BẮTĐẦU!')
+    .setDescription(
+      `**Cụm từ đầu tiên:** \`${gameData.firstPhrase}\`\n\n` +
+      `👥 **Người chơi:**\n${playerList}`
+    )
+    .setFooter({ text: `Hãy gõ cụm từ bắt đầu bằng tiếng: ${startSyllable}` })
+    .setTimestamp();
+
+  try {
+    const reply = message.channel.messages.cache.get(gameData.messageId);
+    if (reply) {
+      await reply.edit({ embeds: [startEmbed], components: [] });
+    }
+  } catch (e) {}
+
+  // Bắt đầu timeout 15 giây
+  gameData.gameTimeout = setTimeout(async () => {
+    if (activeGames.has(channelId) && gameData.isActive) {
+      gameData.isActive = false;
+      await endNoituGame(client, message, store, channelId, gameData);
+    }
+  }, 15 * 1000);
 }
 
 async function handleNoituMessage(client, message, store, content) {
@@ -125,7 +201,9 @@ async function handleNoituMessage(client, message, store, content) {
   if (!activeGames.has(channelId)) return false;
 
   const gameData = activeGames.get(channelId);
-  if (!gameData.isActive) return false;
+  
+  // Chỉ xử lý khi phase là 'playing'
+  if (gameData.phase !== 'playing' || !gameData.isActive) return false;
 
   const guildId = gameData.guildId || message.guild?.id;
   const userId = message.author.id;
@@ -146,13 +224,13 @@ async function handleNoituMessage(client, message, store, content) {
   const validMeaning = await isValidVietnameseWord(normalizedInput);
   if (!validMeaning) {
     try { await message.react('❌'); } catch (e) {}
-    await message.reply(`❌ Cụm từ \`${normalizedInput}\` không có nghĩa hoặc không hợp lệ trong Tiếng Việt!`);
+    await message.reply(`❌ Cụm từ \`${normalizedInput}\` không có nghĩa hoặc không hợp lệ!`);
     return true;
   }
 
   if (gameData.lastPlayerId === userId) {
     try { await message.react('⚠️'); } catch (e) {}
-    await message.reply(`⚠️ **${username}**, bạn vừa nối rồi! Hãy chờ người khác trả lời tiếp.`);
+    await message.reply(`⚠️ **${username}**, bạn vừa nối rồi! Hãy chờ người khác.`);
     return true;
   }
 
@@ -189,10 +267,9 @@ async function handleNoituMessage(client, message, store, content) {
   const randomReward = Math.floor(Math.random() * 2501) + 500;
   gameData.players.get(userId).points += randomReward;
 
-  // ✅ Truyền guildId vào addTungXu
   store.addTungXu(guildId, userId, randomReward);
 
-  const dData = store.getDailyData(userId);
+  const dData = store.getDailyData(guildId, userId);
   if (!dData.claimedGame) {
     dData.games += 1;
   }
@@ -207,11 +284,11 @@ async function handleNoituMessage(client, message, store, content) {
 
   await message.reply({ embeds: [responseEmbed] });
 
-  clearTimeout(gameData.timeout);
-  gameData.timeout = setTimeout(async () => {
+  clearTimeout(gameData.gameTimeout);
+  gameData.gameTimeout = setTimeout(async () => {
     if (activeGames.has(channelId) && gameData.isActive) {
       gameData.isActive = false;
-      endNoituGame(client, message, store, channelId, gameData);
+      await endNoituGame(client, message, store, channelId, gameData);
     }
   }, 15 * 1000);
 
@@ -239,11 +316,8 @@ async function endNoituGame(client, message, store, channelId, gameData) {
   }
 
   const guildId = gameData.guildId || message.guild?.id;
-  
-  // ⚡ Đã giảm thưởng từ 50,000 xuống 10,000 Mcoin
   const bonusReward = 10000;
 
-  // ✅ Truyền guildId vào addTungXu khi cộng thưởng cho người thắng
   store.addTungXu(guildId, winner.userId, bonusReward);
 
   const leaderboard = Array.from(gameData.players.entries())
