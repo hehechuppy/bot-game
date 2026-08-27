@@ -1,4 +1,4 @@
-// games/noitu.js - Game Nối Từ Tiếng Việt Chuẩn (Sử dụng fetch gốc)
+// games/noitu.js - Game Nối Từ Tiếng Việt Chuẩn (Yêu cầu tối thiểu 2 người chơi)
 const { EmbedBuilder } = require('discord.js');
 
 const WORD_LIST = [
@@ -104,7 +104,16 @@ async function startNoituGame(client, message, store) {
   const startEmbed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('🎮 GAME NỐI TIẾNG - BẮT ĐẦU')
-    .setDescription(`**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\nLuật chơi:\n• Từ nối phải là **từ 2 tiếng có nghĩa trong Tiếng Việt**\n• Mỗi lượt có **15 giây** để trả lời\n• **Không thể trả lời 2 lần liên tiếp**\n• **Không dùng từ điệp** (VD: định định, kín kín)\n• Nhập sai chỉ bị nhắc nhở, game dừng khi **hết 15 giây**!`)
+    .setDescription(
+      `**Cụm từ đầu tiên:** \`${firstPhrase}\`\n\n` +
+      `Luật chơi:\n` +
+      `• Yêu cầu **tối thiểu 2 người chơi** mới tính kết quả\n` +
+      `• Từ nối phải là **từ 2 tiếng có nghĩa trong Tiếng Việt**\n` +
+      `• Mỗi lượt có **15 giây** để trả lời\n` +
+      `• **Không thể trả lời 2 lần liên tiếp**\n` +
+      `• **Không dùng từ điệp** (VD: định định, kín kín)\n` +
+      `• Nhập sai chỉ bị nhắc nhở, game dừng khi **hết 15 giây**!`
+    )
     .setFooter({ text: `Hãy gõ cụm từ (2 tiếng có nghĩa) bắt đầu bằng: ${startSyllable}` })
     .setTimestamp();
 
@@ -189,7 +198,7 @@ async function handleNoituMessage(client, message, store, content) {
   const randomReward = Math.floor(Math.random() * 2501) + 500;
   gameData.players.get(userId).points += randomReward;
 
-  // ✅ Truyền guildId vào addTungXu
+  // Tạm cộng điểm lượt chơi
   store.addTungXu(guildId, userId, randomReward);
 
   const dData = store.getDailyData(userId);
@@ -221,8 +230,20 @@ async function handleNoituMessage(client, message, store, content) {
 async function endNoituGame(client, message, store, channelId, gameData) {
   activeGames.delete(channelId);
 
-  if (gameData.players.size === 0) {
-    return message.channel.send('⏱️ **Hết thời gian!** Game kết thúc do không có ai tham gia.');
+  const guildId = gameData.guildId || message.guild?.id;
+
+  // 🔴 KIỂM TRA ĐIỀU KIỆN TỐI THIỂU 2 NGƯỜI CHƠI
+  if (gameData.players.size < 2) {
+    // Thu hồi tiền đã tạm cộng nếu chỉ có 1 người tự nối 1 từ rồi hết giờ
+    for (const [uId, pData] of gameData.players) {
+      if (pData.points > 0) {
+        store.addTungXu(guildId, uId, -pData.points);
+      }
+    }
+
+    return message.channel.send(
+      `⏱️ **Hết thời gian!** Game Nối Từ đã bị hủy do **cần ít nhất 2 người chơi** tham gia (chỉ có ${gameData.players.size} người nối từ). Tiền thưởng lượt chơi đã được hoàn trả/thu hồi.`
+    );
   }
 
   let winner = null;
@@ -238,12 +259,7 @@ async function endNoituGame(client, message, store, channelId, gameData) {
     return message.channel.send('⏱️ **Hết thời gian!** Game kết thúc.');
   }
 
-  const guildId = gameData.guildId || message.guild?.id;
-  
-  // ⚡ Đã giảm thưởng từ 50,000 xuống 10,000 Mcoin
   const bonusReward = 10000;
-
-  // ✅ Truyền guildId vào addTungXu khi cộng thưởng cho người thắng
   store.addTungXu(guildId, winner.userId, bonusReward);
 
   const leaderboard = Array.from(gameData.players.entries())
