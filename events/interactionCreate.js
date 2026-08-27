@@ -1,152 +1,178 @@
-})
-          );
-        }
+module.exports = {
+  name: 'interactionCreate',
+  async execute(interaction) {
+    try {
+      const guildId = interaction.guildId;
 
-        const targetId = parts[2];
-        gameData.witchPoisonTarget = targetId;
-        gameData.witchPoisonUsed = true;
-        gameData.witchActedTonight = true;
+      // =========================================================
+      // BUTTONS & SELECT MENUS
+      // =========================================================
+      if (interaction.isButton() || interaction.isStringSelectMenu()) {
+        // ... [Phần khai báo customId, parts, action, safeRespond, gameData, myRole ...]
 
-        return await safeRespond(() =>
-          interaction.editReply({
-            content: `☠️ Bạn đã chọn đầu độc **${gameData.participants.get(targetId)}**!`,
-            embeds: [],
-            components: []
-          })
-        );
-      }
+        // WITCH POISON
+        if (action === 'witchpoison') {
+          await interaction.deferUpdate();
 
-      // WITCH SKIP
-      if (action === 'witchskip') {
-        await interaction.deferUpdate();
+          if (
+            myRole !== 'phuthuy' ||
+            gameData.witchActedTonight ||
+            gameData.witchPoisonUsed
+          ) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Không thể dùng lúc này!',
+                embeds: [],
+                components: []
+              })
+            );
+          }
 
-        if (myRole !== 'phuthuy' || gameData.witchActedTonight) {
+          const targetId = parts[2];
+          gameData.witchPoisonTarget = targetId;
+          gameData.witchPoisonUsed = true;
+          gameData.witchActedTonight = true;
+
           return await safeRespond(() =>
             interaction.editReply({
-              content: '❌ Không thể dùng lúc này!',
+              content: `☠️ Bạn đã chọn đầu độc **${gameData.participants.get(targetId)}**!`,
               embeds: [],
               components: []
             })
           );
         }
 
-        gameData.witchActedTonight = true;
+        // WITCH SKIP
+        if (action === 'witchskip') {
+          await interaction.deferUpdate();
 
-        return await safeRespond(() =>
-          interaction.editReply({
-            content: '⏭️ Bạn đã chọn bỏ qua lượt đêm nay.',
-            embeds: [],
-            components: []
-          })
-        );
+          if (myRole !== 'phuthuy' || gameData.witchActedTonight) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Không thể dùng lúc này!',
+                embeds: [],
+                components: []
+              })
+            );
+          }
+
+          gameData.witchActedTonight = true;
+
+          return await safeRespond(() =>
+            interaction.editReply({
+              content: '⏭️ Bạn đã chọn bỏ qua lượt đêm nay.',
+              embeds: [],
+              components: []
+            })
+          );
+        }
       }
-    }
 
-    // =========================================================
-    // MODAL SUBMITS
-    // =========================================================
-    if (interaction.isModalSubmit()) {
-      const customId = interaction.customId;
+      // =========================================================
+      // MODAL SUBMITS
+      // =========================================================
+      if (interaction.isModalSubmit()) {
+        const customId = interaction.customId;
 
-      // ---------------- CƯỢC BẦU CUA ----------------
-      if (customId.startsWith('modal_bc_')) {
-        const parts = customId.split('_');
-        const choice = parts[2];
-        const gameMsgId = parts[3];
-        const gameData = store.activeBauCuaGames.get(gameMsgId);
+        // ---------------- CƯỢC BẦU CUA ----------------
+        if (customId.startsWith('modal_bc_')) {
+          const parts = customId.split('_');
+          const choice = parts[2];
+          const gameMsgId = parts[3];
+          const gameData = store.activeBauCuaGames.get(gameMsgId);
 
-        if (!gameData) {
-          return await safeRespond(() =>
-            interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true })
-          );
-        }
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true })
+            );
+          }
 
-        const betInput = interaction.fields.getTextInputValue('bc_bet_input');
-        const betAmount = parseInt(betInput.replace(/,/g, ''), 10);
-        const userId = interaction.user.id;
-        const currentBal = store.getBalance(guildId, userId);
+          const betInput = interaction.fields.getTextInputValue('bc_bet_input');
+          const betAmount = parseInt(betInput.replace(/,/g, ''), 10);
+          const userId = interaction.user.id;
+          const currentBal = store.getBalance(guildId, userId);
 
-        if (isNaN(betAmount) || betAmount <= 0) {
-          return await safeRespond(() =>
-            interaction.reply({ content: '❌ Số tiền cược không hợp lệ!', ephemeral: true })
-          );
-        }
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.reply({ content: '❌ Số tiền cược không hợp lệ!', ephemeral: true })
+            );
+          }
 
-        if (currentBal < betAmount) {
+          if (currentBal < betAmount) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: `❌ Bạn không đủ tiền! Cần **${betAmount.toLocaleString()} Mcoin** (Số dư: ${currentBal.toLocaleString()} Mcoin).`,
+                ephemeral: true
+              })
+            );
+          }
+
+          store.addTungXu(guildId, userId, -betAmount);
+
+          if (!gameData.bets.has(userId)) {
+            gameData.bets.set(userId, {});
+          }
+          const userBets = gameData.bets.get(userId);
+          userBets[choice] = (userBets[choice] || 0) + betAmount;
+
           return await safeRespond(() =>
             interaction.reply({
-              content: `❌ Bạn không đủ tiền! Cần **${betAmount.toLocaleString()} Mcoin** (Số dư: ${currentBal.toLocaleString()} Mcoin).`,
+              content: `✅ Bạn đã đặt cược **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`,
               ephemeral: true
             })
           );
         }
 
-        store.addTungXu(guildId, userId, -betAmount);
+        // ---------------- CƯỢC TUNG XU MULTI ----------------
+        if (customId.startsWith('modal_tx_multi_')) {
+          const parts = customId.split('_');
+          const choice = parts[3];
+          const gameMsgId = parts[4];
+          const gameData = store.activeTungXuGames.get(gameMsgId);
 
-        if (!gameData.bets.has(userId)) {
-          gameData.bets.set(userId, {});
-        }
-        const userBets = gameData.bets.get(userId);
-        userBets[choice] = (userBets[choice] || 0) + betAmount;
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true })
+            );
+          }
 
-        return await safeRespond(() =>
-          interaction.reply({
-            content: `✅ Bạn đã đặt cược **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`,
-            ephemeral: true
-          })
-        );
-      }
+          const betInput = interaction.fields.getTextInputValue('tx_bet_input');
+          const betAmount = parseInt(betInput.replace(/,/g, ''), 10);
+          const userId = interaction.user.id;
+          const currentBal = store.getBalance(guildId, userId);
 
-      // ---------------- CƯỢC TUNG XU MULTI ----------------
-      if (customId.startsWith('modal_tx_multi_')) {
-        const parts = customId.split('_');
-        const choice = parts[3];
-        const gameMsgId = parts[4];
-        const gameData = store.activeTungXuGames.get(gameMsgId);
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.reply({ content: '❌ Số tiền cược không hợp lệ!', ephemeral: true })
+            );
+          }
 
-        if (!gameData) {
-          return await safeRespond(() =>
-            interaction.reply({ content: '❌ Sòng đã kết thúc!', ephemeral: true })
-          );
-        }
+          if (currentBal < betAmount) {
+            return await safeRespond(() =>
+              interaction.reply({
+                content: `❌ Bạn không đủ tiền! Cần **${betAmount.toLocaleString()} Mcoin** (Số dư: ${currentBal.toLocaleString()} Mcoin).`,
+                ephemeral: true
+              })
+            );
+          }
 
-        const betInput = interaction.fields.getTextInputValue('tx_bet_input');
-        const betAmount = parseInt(betInput.replace(/,/g, ''), 10);
-        const userId = interaction.user.id;
-        const currentBal = store.getBalance(guildId, userId);
+          store.addTungXu(guildId, userId, -betAmount);
 
-        if (isNaN(betAmount) || betAmount <= 0) {
-          return await safeRespond(() =>
-            interaction.reply({ content: '❌ Số tiền cược không hợp lệ!', ephemeral: true })
-          );
-        }
+          if (!gameData.bets.has(userId)) {
+            gameData.bets.set(userId, []);
+          }
+          gameData.bets.get(userId).push({ choice, amount: betAmount });
 
-        if (currentBal < betAmount) {
           return await safeRespond(() =>
             interaction.reply({
-              content: `❌ Bạn không đủ tiền! Cần **${betAmount.toLocaleString()} Mcoin** (Số dư: ${currentBal.toLocaleString()} Mcoin).`,
+              content: `✅ Bạn đã cược **${betAmount.toLocaleString()} Mcoin** vào mặt **${choice.toUpperCase()}**!`,
               ephemeral: true
             })
           );
         }
-
-        store.addTungXu(guildId, userId, -betAmount);
-
-        if (!gameData.bets.has(userId)) {
-          gameData.bets.set(userId, []);
-        }
-        gameData.bets.get(userId).push({ choice, amount: betAmount });
-
-        return await safeRespond(() =>
-          interaction.reply({
-            content: `✅ Bạn đã cược **${betAmount.toLocaleString()} Mcoin** vào mặt **${choice.toUpperCase()}**!`,
-            ephemeral: true
-          })
-        );
       }
+    } catch (err) {
+      console.error('❌ Lỗi hệ thống trong interactionCreate:', err);
     }
-  } catch (err) {
-    console.error('❌ Lỗi hệ thống trong interactionCreate:', err);
   }
-}
 };
