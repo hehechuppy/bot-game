@@ -1,6 +1,10 @@
 module.exports = {
   name: 'interactionCreate',
-  async execute(interaction) {
+  async execute(arg1, arg2) {
+    // Tự động xác định đối tượng interaction kể cả khi index.js truyền (client, interaction)
+    const interaction = (arg1 && typeof arg1.isButton === 'function') ? arg1 : arg2;
+    if (!interaction || typeof interaction.isButton !== 'function') return;
+
     try {
       const guildId = interaction.guildId;
 
@@ -8,7 +12,9 @@ module.exports = {
       // BUTTONS & SELECT MENUS
       // =========================================================
       if (interaction.isButton() || interaction.isStringSelectMenu()) {
-        // ... [Phần khai báo customId, parts, action, safeRespond, gameData, myRole ...]
+        const customId = interaction.customId;
+        const parts = customId.split('_');
+        const action = parts[1];
 
         // WITCH POISON
         if (action === 'witchpoison') {
