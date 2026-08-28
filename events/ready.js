@@ -105,16 +105,10 @@ module.exports = {
         const channel = await client.channels.fetch(store.backupChannelId).catch(() => null);
         if (!channel) return;
 
-        const backupData = store.exportData ? store.exportData() : {
-          economy: Array.from(store.economyMap.entries()),
-          dailyData: Array.from(store.dailyDataMap.entries()),
-          usedCodes: Array.from(store.usedCodesMap.entries()).map(([k, v]) => [k, Array.from(v)]),
-          customCodes: Array.from(store.customCodesMap.entries()),
-          leaderboard: Array.from(store.leaderboardMap.entries()),
-          backupChannelId: store.backupChannelId
-        };
+        // Dùng generateBackupData() có sẵn trong store.js để backup đầy đủ (đã hỗ trợ per-guild)
+        const backupJson = store.generateBackupData();
 
-        const jsonBuffer = Buffer.from(JSON.stringify(backupData, null, 2), 'utf-8');
+        const jsonBuffer = Buffer.from(backupJson, 'utf-8');
         const attachment = new AttachmentBuilder(jsonBuffer, { name: `backup_${Date.now()}.json` });
 
         await channel.send({
@@ -130,44 +124,59 @@ module.exports = {
 
     // --- 3. KHỞI TẠO TIẾN TRÌNH TREO VOICE (MỖI 1 PHÚT) ---
     setInterval(async () => {
-      for (const [guildId, guild] of client.guilds.cache) {
-        for (const [channelId, channel] of guild.channels.cache) {
-          if (!channel.isVoiceBased()) continue;
-          for (const [memberId, member] of channel.members) {
-            if (member.user.bot) continue;
-            const baseEarned = Math.floor(Math.random() * 2001) + 1000; // 1000 - 3000 Mcoin
-            const multiplier = store.getVoiceMultiplier(guildId, member.id);
-            store.addTungXu(guildId, member.id, baseEarned * multiplier);
-            store.addVoiceTime(guildId, member.id, 60);
+      try {
+        for (const [guildId, guild] of client.guilds.cache) {
+          for (const [channelId, channel] of guild.channels.cache) {
+            if (!channel.isVoiceBased()) continue;
+            for (const [memberId, member] of channel.members) {
+              if (member.user.bot) continue;
+              const baseEarned = Math.floor(Math.random() * 2001) + 1000; // 1000 - 3000 Mcoin
+              const multiplier = store.getVoiceMultiplier(guildId, member.id);
+              store.addTungXu(guildId, member.id, baseEarned * multiplier);
+              store.addVoiceTime(guildId, member.id, 60);
+            }
           }
         }
+      } catch (err) {
+        console.error('❌ Lỗi tiến trình treo voice (cộng Mcoin):', err);
       }
     }, 60000);
 
     // --- KHỞI TẠO TIẾN TRÌNH RESET & PHÁT THƯỞNG VOICE BẢNG XẾP HẠNG HÀNG NGÀY ---
     setInterval(async () => {
-      const resultByGuild = await store.checkAndResetVoiceDaily();
-      if (!resultByGuild) return;
+      try {
+        // ✅ FIX: Tên hàm đúng trong store.js là checkAndResetVoiceDay (không phải checkAndResetVoiceDaily)
+        const resultByGuild = await store.checkAndResetVoiceDay();
+        if (!resultByGuild) return;
 
-      for (const [guildId, winners] of resultByGuild) {
-        const guild = client.guilds.cache.get(guildId);
-        if (!guild || !guild.systemChannel) continue;
+        for (const [guildId, winners] of resultByGuild) {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild || !guild.systemChannel) continue;
 
-        const desc = winners.map(w => {
-          const hours = Math.floor(w.seconds / 3600);
-          const mins = Math.floor((w.seconds % 3600) / 60);
-          const boxText = w.box > 0 ? ` + 🎁 ${w.box} Lucky Box` : '';
-          return `**#${w.rank}** — <@${w.userId}> (⏱️ ${hours}h${mins}m) ${boxText}`;
-        }).join('\n\n');
+          const rewardText = (rank) => {
+            if (rank === 1) return '💰 50,000 Mcoin + 🎁 2 Lucky Box';
+            if (rank === 2) return '💰 25,000 Mcoin + 🎁 1 Lucky Box';
+            if (rank === 3) return '💰 10,000 Mcoin';
+            return '💰 367 Mcoin';
+          };
 
-        const embed = new EmbedBuilder()
-          .setColor('#FFD700')
-          .setTitle('🏆 KẾT QUẢ BẢNG XẾP HẠNG VOICE HÔM NAY')
-          .setDescription(desc)
-          .setFooter({ text: 'Bảng xếp hạng đã được reset cho ngày mới!' })
-          .setTimestamp();
+          const desc = winners.map(w => {
+            const hours = Math.floor(w.seconds / 3600);
+            const mins = Math.floor((w.seconds % 3600) / 60);
+            return `**#${w.rank}** — <@${w.userId}> (⏱️ ${hours}h${mins}m)\n${rewardText(w.rank)}`;
+          }).join('\n\n');
 
-        guild.systemChannel.send({ embeds: [embed] }).catch(() => {});
+          const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🏆 KẾT QUẢ BẢNG XẾP HẠNG VOICE HÔM NAY')
+            .setDescription(desc)
+            .setFooter({ text: 'Bảng xếp hạng đã được reset cho ngày mới!' })
+            .setTimestamp();
+
+          guild.systemChannel.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (err) {
+        console.error('❌ Lỗi tiến trình reset/phát thưởng voice:', err);
       }
     }, 60000);
   }
