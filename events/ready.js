@@ -150,8 +150,9 @@ module.exports = {
         if (!resultByGuild) return;
 
         for (const [guildId, winners] of resultByGuild) {
-          const guild = client.guilds.cache.get(guildId);
-          if (!guild || !guild.systemChannel) continue;
+          const ANNOUNCE_CHANNEL_ID = '1542696708712955904';
+          const announceChannel = await client.channels.fetch(ANNOUNCE_CHANNEL_ID).catch(() => null);
+          if (!announceChannel) continue;
 
           const rewardText = (rank) => {
             if (rank === 1) return '💰 50,000 Mcoin + 🎁 2 Lucky Box';
@@ -173,7 +174,7 @@ module.exports = {
             .setFooter({ text: 'Bảng xếp hạng đã được reset cho ngày mới!' })
             .setTimestamp();
 
-          guild.systemChannel.send({ embeds: [embed] }).catch(() => {});
+          announceChannel.send({ embeds: [embed] }).catch(() => {});
         }
       } catch (err) {
         console.error('❌ Lỗi tiến trình reset/phát thưởng voice:', err);
