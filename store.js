@@ -41,7 +41,7 @@ const SHOP_ITEMS = [
         id: 2,
         type: 'winmultiplier',
         name: 'X2 Tiền',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (2 lượt)',
+        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
         price: 1000000,
         uses: 2,
         multiplier: 2,
@@ -440,17 +440,32 @@ function restoreBackupData(backupJson) {
     try {
         const data = JSON.parse(backupJson);
 
+        // ================= MIGRATE: Tự động detect key cũ (userId) -> key mới (guildId_userId) =================
+        // Key cũ: "123456789" (chỉ userId, không có dấu _)
+        // Key mới: "111111_123456789" (guildId_userId, có đúng 1 dấu _ phân cách 2 phần đều là số)
+        const DEFAULT_GUILD_ID = '1414651512629493810'; // Guild ID chính của bot (Shadow Glade)
+
+        function migrateKey(key) {
+            // Nếu key đã là dạng "guildId_userId" (có _ và cả 2 phần đều là số) thì giữ nguyên
+            const parts = key.split('_');
+            if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+                return key; // Key mới rồi, không cần migrate
+            }
+            // Key cũ (chỉ là userId thuần) → thêm DEFAULT_GUILD_ID vào đầu
+            return `${DEFAULT_GUILD_ID}_${key}`;
+        }
+
         if (data.economy) {
             economyMap.clear();
-            for (const [k, v] of data.economy) economyMap.set(k, v);
+            for (const [k, v] of data.economy) economyMap.set(migrateKey(k), v);
         }
         if (data.dailyData) {
             dailyDataMap.clear();
-            for (const [k, v] of data.dailyData) dailyDataMap.set(k, v);
+            for (const [k, v] of data.dailyData) dailyDataMap.set(migrateKey(k), v);
         }
         if (data.usedCodes) {
             usedCodesMap.clear();
-            for (const [k, v] of data.usedCodes) usedCodesMap.set(k, new Set(v));
+            for (const [k, v] of data.usedCodes) usedCodesMap.set(migrateKey(k), new Set(v));
         }
         if (data.customCodes) {
             customCodesMap.clear();
@@ -458,19 +473,33 @@ function restoreBackupData(backupJson) {
         }
         if (data.leaderboard) {
             leaderboardMap.clear();
-            for (const [k, v] of data.leaderboard) leaderboardMap.set(k, v);
+            for (const [k, v] of data.leaderboard) leaderboardMap.set(migrateKey(k), v);
         }
         if (data.voiceLeaderboard) {
             voiceLeaderboardMap.clear();
-            for (const [k, v] of data.voiceLeaderboard) voiceLeaderboardMap.set(k, v);
+            for (const [k, v] of data.voiceLeaderboard) {
+                const newKey = migrateKey(k);
+                // Nếu value là object (per-guild mới) thì giữ nguyên, nếu là số (cũ) thì wrap lại
+                if (typeof v === 'object' && v !== null && 'totalSeconds' in v) {
+                    voiceLeaderboardMap.set(newKey, v);
+                } else {
+                    const parts = newKey.split('_');
+                    voiceLeaderboardMap.set(newKey, {
+                        totalSeconds: typeof v === 'number' ? v : 0,
+                        startDay: voiceDayStart,
+                        guildId: parts[0],
+                        userId: parts[1]
+                    });
+                }
+            }
         }
         if (data.streakMap) {
             streakMap.clear();
-            for (const [k, v] of data.streakMap) streakMap.set(k, v);
+            for (const [k, v] of data.streakMap) streakMap.set(migrateKey(k), v);
         }
         if (data.inventoryMap) {
             inventoryMap.clear();
-            for (const [k, v] of data.inventoryMap) inventoryMap.set(k, new Map(v));
+            for (const [k, v] of data.inventoryMap) inventoryMap.set(migrateKey(k), new Map(v));
         }
         if (data.voiceDayStart) voiceDayStart = data.voiceDayStart;
         if (data.backupChannelId) backupChannelId = data.backupChannelId;
