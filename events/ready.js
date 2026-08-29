@@ -140,7 +140,7 @@ module.exports = {
       } catch (err) {
         console.error('❌ Lỗi tiến trình treo voice (cộng Mcoin):', err);
       }
-    }, 60000);
+    }, 90000);
 
     // --- KHỞI TẠO TIẾN TRÌNH RESET & PHÁT THƯỞNG VOICE BẢNG XẾP HẠNG HÀNG NGÀY ---
     setInterval(async () => {
