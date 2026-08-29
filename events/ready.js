@@ -133,7 +133,7 @@ module.exports = {
               const baseEarned = Math.floor(Math.random() * 2001) + 1000; // 1000 - 3000 Mcoin
               const multiplier = store.getVoiceMultiplier(guildId, member.id);
               store.addTungXu(guildId, member.id, baseEarned * multiplier);
-              store.addVoiceTime(guildId, member.id, 60);
+              store.addVoiceTime(guildId, member.id, 120);
             }
           }
         }
@@ -161,16 +161,25 @@ module.exports = {
             return '💰 367 Mcoin';
           };
 
-          const desc = winners.map(w => {
+          const desc_parts = [];
+          for (const w of winners) {
             const hours = Math.floor(w.seconds / 3600);
             const mins = Math.floor((w.seconds % 3600) / 60);
-            return `**#${w.rank}** — <@${w.userId}> (⏱️ ${hours}h${mins}m)\n${rewardText(w.rank)}`;
-          }).join('\n\n');
+
+            let displayName = `User_${w.userId.slice(-4)}`;
+            try {
+              const user = await client.users.fetch(w.userId);
+              displayName = user.displayName || user.username || displayName;
+            } catch (e) { /* bỏ qua */ }
+
+            const medal = w.rank === 1 ? '🥇' : w.rank === 2 ? '🥈' : w.rank === 3 ? '🥉' : `**#${w.rank}**`;
+            desc_parts.push(`${medal} **${displayName}** (⏱️ ${hours}h${mins}m)\n${rewardText(w.rank)}`);
+          }
 
           const embed = new EmbedBuilder()
-            .setColor('#FFD700')
-            .setTitle('🏆 KẾT QUẢ BẢNG XẾP HẠNG VOICE HÔM NAY')
-            .setDescription(desc)
+            .setColor('#00BFFF')
+            .setTitle('🎙️ PHÁT THƯỞNG BẢNG XẾP HẠNG VOICE HÔM NAY')
+            .setDescription(desc_parts.join('\n\n'))
             .setFooter({ text: 'Bảng xếp hạng đã được reset cho ngày mới!' })
             .setTimestamp();
 
