@@ -1,140 +1,98 @@
 // jobs/rewardJob.js
-const { CronJob } = require('cron');
 const { EmbedBuilder } = require('discord.js');
 const store = require('../store');
 
+// ID kênh thông báo phát thưởng
+const REWARD_CHANNEL_ID = '1542696708712955904';
+
+// Cấu hình phần thưởng XH Mcoin
+const XH_REWARDS = [
+    { rank: 1, mcoin: 300000 },
+    { rank: 2, mcoin: 200000 },
+    { rank: 3, mcoin: 100000 },
+    { rank: 4, mcoin: 36000 },
+    { rank: 5, mcoin: 36000 },
+    { rank: 6, mcoin: 36000 },
+    { rank: 7, mcoin: 36000 },
+    { rank: 8, mcoin: 36000 },
+    { rank: 9, mcoin: 36000 },
+    { rank: 10, mcoin: 36000 },
+];
+
 function startRewardJob(client) {
+    // Kiểm tra mỗi phút xem đã đến 00:00 chưa
+    setInterval(async () => {
+        const now = new Date();
 
-  // ========== PHÁT THƯỞNG HÀNG NGÀY LÚC 0H (00:00) ==========
-  // Gồm: Bảng xếp hạng Mcoin + Bảng xếp hạng Voice
-  new CronJob('0 0 0 * * *', async () => {
-    let allRewardsLog = [];
+        // Chỉ chạy lúc 00:00 (giờ = 0, phút = 0)
+        if (now.getHours() !== 0 || now.getMinutes() !== 0) return;
 
-    // ========== PHÁT THƯỞNG BẢNG XẾP HẠNG MCOIN ==========
-    if (store.economyMap.size > 0) {
-      const sorted = Array.from(store.economyMap.entries())
-        .sort((a, b) => b[1] - a[1])
+        try {
+            await payXHRewards(client);
+        } catch (err) {
+            console.error('❌ Lỗi phát thưởng XH Mcoin:', err);
+        }
+    }, 60 * 1000); // Kiểm tra mỗi phút
+
+    console.log('✅ RewardJob đã khởi động - phát thưởng XH lúc 00:00 mỗi ngày');
+}
+
+async function payXHRewards(client) {
+    // Lấy kênh thông báo
+    const channel = await client.channels.fetch(REWARD_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        console.error(`❌ Không tìm thấy kênh ${REWARD_CHANNEL_ID}`);
+        return;
+    }
+
+    // Lấy guildId từ kênh
+    const guildId = channel.guildId;
+
+    // Lọc top 10 người có nhiều Mcoin nhất trong server này
+    const prefix = `${guildId}_`;
+    const guildEntries = Array.from(store.economyMap.entries())
+        .filter(([key]) => key.startsWith(prefix))
+        .map(([key, balance]) => ({
+            userId: key.slice(prefix.length),
+            balance
+        }))
+        .sort((a, b) => b.balance - a.balance)
         .slice(0, 10);
 
-      const mcoinRewards = [300000, 200000, 100000, 36000];
-
-      for (let i = 0; i < sorted.length; i++) {
-        const [uId] = sorted[i];
-        const reward = mcoinRewards[i] || 36000;
-
-        if (reward > 0) {
-          store.addTungXu(uId, reward);
-
-          allRewardsLog.push({
-            type: 'mcoin',
-            rank: i + 1,
-            userId: uId,
-            reward: reward,
-            box: 0
-          });
-        }
-      }
+    if (guildEntries.length === 0) {
+        console.log('⚠️ Không có ai trong bảng XH Mcoin, bỏ qua phát thưởng');
+        return;
     }
 
-    // ========== PHÁT THƯỞNG BẢNG XẾP HẠNG VOICE (+ LUCKY BOX) ==========
-    const voiceTop10 = store.getVoiceLeaderboard(10);
+    // Phát thưởng + lấy tên người dùng
+    const lines = [];
+    for (let i = 0; i < guildEntries.length; i++) {
+        const { userId, balance } = guildEntries[i];
+        const reward = XH_REWARDS[i] || { mcoin: 36000 };
 
-    if (voiceTop10.length > 0) {
-      const voiceRewards = [
-        { mcoin: 300000, box: 2 },
-        { mcoin: 200000, box: 1 },
-        { mcoin: 100000, box: 0 },
-        { mcoin: 36000, box: 0 }
-      ];
+        // Cộng tiền thưởng
+        store.addTungXu(guildId, userId, reward.mcoin);
 
-      for (let i = 0; i < voiceTop10.length; i++) {
-        const [uId] = voiceTop10[i];
-        const rewardData = voiceRewards[i] || voiceRewards[3];
+        // Lấy tên hiển thị (username) - fetch từ Discord
+        let displayName = `User_${userId.slice(-4)}`;
+        try {
+            const user = await client.users.fetch(userId);
+            displayName = user.displayName || user.username || displayName;
+        } catch (e) { /* Bỏ qua nếu không fetch được */ }
 
-        store.addTungXu(uId, rewardData.mcoin);
-
-        if (rewardData.box > 0) {
-          store.addToInventory(uId, 4, rewardData.box); // ✅ Lucky Box ID 4
-        }
-
-        allRewardsLog.push({
-          type: 'voice',
-          rank: i + 1,
-          userId: uId,
-          reward: rewardData.mcoin,
-          box: rewardData.box
-        });
-      }
-
-      // ✅ RESET BẢNG VOICE HÀNG NGÀY (sau khi phát thưởng)
-      store.resetVoiceLeaderboardDaily();
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `**Top ${i + 1}**`;
+        lines.push(`• ${medal} **${displayName}**: +${reward.mcoin.toLocaleString()} Mcoin`);
     }
 
-    // ========== GỬI THÔNG BÁO VỀ CHANNEL BACKUP ==========
-    if (store.backupChannelId && allRewardsLog.length > 0) {
-      try {
-        const channel = await client.channels.fetch(store.backupChannelId);
+    const embed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle('🏆 PHÁT THƯỞNG BẢNG XẾP HẠNG MCOIN')
+        .setDescription(lines.join('\n'))
+        .setFooter({ text: 'Chúc mừng những người chơi xuất sắc nhất!' })
+        .setTimestamp();
 
-        if (channel) {
-          // ========== BXH MCOIN ==========
-          const mcoinRewards = allRewardsLog.filter(
-            r => r.type === 'mcoin'
-          );
-
-          const voiceRewards = allRewardsLog.filter(
-            r => r.type === 'voice'
-          );
-
-          if (mcoinRewards.length > 0) {
-            const mcoinDesc = mcoinRewards.map(r => {
-              return `• **Top ${r.rank}** (<@${r.userId}>): +${r.reward.toLocaleString()} Mcoin`;
-            }).join('\n');
-
-            const mcoinEmbed = new EmbedBuilder()
-              .setColor('#FFD700')
-              .setTitle('🏆 PHÁT THƯỞNG BẢNG XẾP HẠNG MCOIN (x2)')
-              .setDescription(mcoinDesc)
-              .setFooter({
-                text: 'Tổng thưởng gấp đôi hôm nay!'
-              });
-
-            await channel.send({
-              embeds: [mcoinEmbed]
-            });
-          }
-
-          // ========== BXH VOICE ==========
-          if (voiceRewards.length > 0) {
-            const voiceDesc = voiceRewards.map(r => {
-              const boxText =
-                r.box > 0
-                  ? ` + 🎁 ${r.box} Lucky Box`
-                  : '';
-
-              return `• **Top ${r.rank}** (<@${r.userId}>): +${r.reward.toLocaleString()} Mcoin${boxText}`;
-            }).join('\n');
-
-            const voiceEmbed = new EmbedBuilder()
-              .setColor('#00BFFF')
-              .setTitle('🎙️ PHÁT THƯỞNG BẢNG XẾP HẠNG VOICE (x2)')
-              .setDescription(voiceDesc)
-              .setFooter({
-                text: 'Tổng thưởng gấp đôi hôm nay!'
-              });
-
-            await channel.send({
-              embeds: [voiceEmbed]
-            });
-          }
-        }
-      } catch (e) {
-        console.error(
-          '❌ Lỗi khi gửi thông báo phát thưởng:',
-          e
-        );
-      }
-    }
-  }, null, true, 'Asia/Ho_Chi_Minh');
+    await channel.send({ embeds: [embed] });
+    console.log(`✅ Đã phát thưởng XH Mcoin cho ${guildEntries.length} người`);
 }
 
 module.exports = { startRewardJob };
