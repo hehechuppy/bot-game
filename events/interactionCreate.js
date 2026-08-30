@@ -59,7 +59,6 @@ module.exports = {
   async execute(client, interaction) {
     try {
       const guildId = interaction.guild ? interaction.guild.id : null;
-      const customId = interaction.customId;
 
       // =========================================================
       // AUTOCOMPLETE
@@ -81,7 +80,8 @@ module.exports = {
             .slice(0, 25);
 
           const choices = filtered.map(code => ({
-            name: `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
+            name:
+              `${code} (+${store.customCodesMap.get(code).reward.toLocaleString()} Mcoin)`,
             value: code
           }));
 
@@ -91,86 +91,6 @@ module.exports = {
         }
 
         return;
-      }
-
-      // ======================================================
-      // NOITU JOIN BUTTON
-      // ======================================================
-      if (interaction.isButton() && customId.startsWith('noitu_join_')) {
-        await interaction.deferUpdate();
-
-        const channelId = customId.replace('noitu_join_', '');
-        const { activeGames } = require('../games/noitu');
-
-        const gameData = activeGames.get(channelId);
-
-        if (!gameData) {
-          return await safeRespond(() =>
-            interaction.editReply({
-              content: '❌ Game nối tiếng này đã kết thúc!'
-            })
-          );
-        }
-
-        if (gameData.phase !== 'joining') {
-          return await safeRespond(() =>
-            interaction.editReply({
-              content: '❌ Game đã bắt đầu rồi, không thể tham gia!'
-            })
-          );
-        }
-
-        const userId = interaction.user.id;
-
-        if (gameData.joinedPlayers.has(userId)) {
-          return await safeRespond(() =>
-            interaction.editReply({
-              content: '⚠️ Bạn đã tham gia game này rồi!'
-            })
-          );
-        }
-
-        // Thêm người chơi vào danh sách
-        gameData.joinedPlayers.set(userId, {
-          name: interaction.user.username,
-          joined_at: Date.now()
-        });
-
-        // Cập nhật embed với danh sách người tham gia
-        const playerCount = gameData.joinedPlayers.size;
-        const playerList = Array.from(gameData.joinedPlayers.values())
-          .map(p => `• ${p.name}`)
-          .join('\n');
-
-        const updatedEmbed = new EmbedBuilder()
-          .setColor('#00FF00')
-          .setTitle('🎮 GAME NỐI TIẾNG - TÌM KIẾM NGƯỜI CHƠI')
-          .setDescription(
-            `👤 **Người tạo:** ${gameData.starterName}\n\n` +
-            `📋 **Luật chơi:**\n` +
-            `• Từ nối phải là **từ 2 tiếng có nghĩa** trong Tiếng Việt\n` +
-            `• Mỗi lượt có **15 giây** để trả lời\n` +
-            `• **Không thể trả lời 2 lần liên tiếp**\n` +
-            `• **Không dùng từ điệp** (VD: định định, kín kín)\n` +
-            `• Nhập sai chỉ bị nhắc nhở, game dừng khi **hết 15 giây**!\n\n` +
-            `👥 **Người đã tham gia (${playerCount}):**\n${playerList}`
-          )
-          .setFooter({ text: playerCount >= 2 ? 'Game sẽ bắt đầu trong 30 giây hoặc khi có đủ người!' : 'Bấm nút để tham gia game!' })
-          .setTimestamp();
-
-        const joinRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`noitu_join_${channelId}`)
-            .setLabel('🙋 Tham Gia')
-            .setStyle(ButtonStyle.Success)
-        );
-
-        return await safeRespond(() =>
-          interaction.editReply({
-            embeds: [updatedEmbed],
-            components: [joinRow]
-          })
-        );
       }
 
       // =========================================================
@@ -227,6 +147,7 @@ module.exports = {
             );
           }
 
+          // Thêm vật phẩm vào kho người nhận (riêng theo server hiện tại)
           store.addToInventory(guildId, targetUser.id, itemId, quantity);
 
           const giftEmbed = new EmbedBuilder()
@@ -257,28 +178,43 @@ module.exports = {
           if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Bạn không có quyền sử dụng lệnh tạo mã code này!',
+                content:
+                  '❌ Bạn không có quyền sử dụng lệnh tạo mã code này!',
                 ephemeral: true
               })
             );
           }
 
-          const codeName = interaction.options.getString('code').toLowerCase().trim();
-          const rewardAmount = interaction.options.getInteger('reward');
-          const durationMinutes = interaction.options.getInteger('duration');
+          const codeName = interaction.options
+            .getString('code')
+            .toLowerCase()
+            .trim();
+
+          const rewardAmount =
+            interaction.options.getInteger('reward');
+
+          const durationMinutes =
+            interaction.options.getInteger('duration');
 
           if (store.customCodesMap.has(codeName)) {
             return await safeRespond(() =>
               interaction.reply({
-                content: `❌ Mã code \`${codeName}\` đã tồn tại!`,
+                content:
+                  `❌ Mã code \`${codeName}\` đã tồn tại!`,
                 ephemeral: true
               })
             );
           }
 
           let expiresAt = null;
-          if (durationMinutes && durationMinutes > 0) {
-            expiresAt = Date.now() + durationMinutes * 60 * 1000;
+
+          if (
+            durationMinutes &&
+            durationMinutes > 0
+          ) {
+            expiresAt =
+              Date.now() +
+              durationMinutes * 60 * 1000;
           }
 
           store.customCodesMap.set(codeName, {
@@ -286,16 +222,21 @@ module.exports = {
             expiresAt
           });
 
-          const timeStr = expiresAt ? `<t:${Math.floor(expiresAt / 1000)}:R>` : 'Vĩnh viễn';
+          const timeStr = expiresAt
+            ? `<t:${Math.floor(expiresAt / 1000)}:R>`
+            : 'Vĩnh viễn';
 
-          const successEmbed = new EmbedBuilder()
-            .setColor('#00FFCC')
-            .setTitle('🎟️ TẠO MÃ CODE THÀNH CÔNG')
-            .setDescription(
-              `• Mã: \`${codeName}\`\n` +
-              `• Phần thưởng: **+${rewardAmount.toLocaleString()} Mcoin**\n` +
-              `• Thời hạn: **${timeStr}**`
-            );
+          const successEmbed =
+            new EmbedBuilder()
+              .setColor('#00FFCC')
+              .setTitle(
+                '🎟️ TẠO MÃ CODE THÀNH CÔNG'
+              )
+              .setDescription(
+                `• Mã: \`${codeName}\`\n` +
+                `• Phần thưởng: **+${rewardAmount.toLocaleString()} Mcoin**\n` +
+                `• Thời hạn: **${timeStr}**`
+              );
 
           return await safeRespond(() =>
             interaction.reply({
@@ -309,35 +250,45 @@ module.exports = {
           if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Bạn không có quyền sử dụng lệnh xóa code này!',
+                content:
+                  '❌ Bạn không có quyền sử dụng lệnh xóa code này!',
                 ephemeral: true
               })
             );
           }
 
-          const codeName = interaction.options.getString('code').toLowerCase().trim();
+          const codeName = interaction.options
+            .getString('code')
+            .toLowerCase()
+            .trim();
 
           if (!store.customCodesMap.has(codeName)) {
             return await safeRespond(() =>
               interaction.reply({
-                content: `❌ Mã code \`${codeName}\` không tồn tại!`,
+                content:
+                  `❌ Mã code \`${codeName}\` không tồn tại!`,
                 ephemeral: true
               })
             );
           }
 
-          const deletedCode = store.customCodesMap.get(codeName);
+          const deletedCode =
+            store.customCodesMap.get(codeName);
+
           store.customCodesMap.delete(codeName);
 
-          const successEmbed = new EmbedBuilder()
-            .setColor('#FF4444')
-            .setTitle('🗑️ ĐÃ XÓA MÃ CODE')
-            .setDescription(
-              `• Mã: \`${codeName}\`\n` +
-              `• Phần thưởng cũ: **+${deletedCode.reward.toLocaleString()} Mcoin**\n` +
-              `• Người xóa: ${interaction.user.username}`
-            )
-            .setTimestamp();
+          const successEmbed =
+            new EmbedBuilder()
+              .setColor('#FF4444')
+              .setTitle(
+                '🗑️ ĐÃ XÓA MÃ CODE'
+              )
+              .setDescription(
+                `• Mã: \`${codeName}\`\n` +
+                `• Phần thưởng cũ: **+${deletedCode.reward.toLocaleString()} Mcoin**\n` +
+                `• Người xóa: ${interaction.user.username}`
+              )
+              .setTimestamp();
 
           return await safeRespond(() =>
             interaction.reply({
@@ -351,18 +302,22 @@ module.exports = {
           if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Bạn không có quyền quản trị viên!',
+                content:
+                  '❌ Bạn không có quyền quản trị viên!',
                 ephemeral: true
               })
             );
           }
 
-          const channel = interaction.options.getChannel('channel');
+          const channel =
+            interaction.options.getChannel('channel');
+
           store.backupChannelId = channel.id;
 
           return await safeRespond(() =>
             interaction.reply({
-              content: `✅ Đã cài đặt kênh backup tại: ${channel}`,
+              content:
+                `✅ Đã cài đặt kênh backup tại: ${channel}`,
               ephemeral: true
             })
           );
@@ -373,13 +328,16 @@ module.exports = {
           if (!isAdmin && !isOwner) {
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ Bạn không có quyền quản trị viên!',
+                content:
+                  '❌ Bạn không có quyền quản trị viên!',
                 ephemeral: true
               })
             );
           }
 
-          const attachment = interaction.options.getAttachment('file');
+          const attachment =
+            interaction.options.getAttachment('file');
+
           if (!attachment) {
             return await safeRespond(() =>
               interaction.reply({
@@ -390,10 +348,18 @@ module.exports = {
           }
 
           try {
-            const response = await fetch(attachment.url);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const response =
+              await fetch(attachment.url);
+
+            if (!response.ok) {
+              throw new Error(
+                `HTTP ${response.status}`
+              );
+            }
 
             const backupJson = await response.text();
+
+            // Dùng hàm restoreBackupData() trong store.js (đã hỗ trợ đầy đủ per-guild)
             const ok = store.restoreBackupData(backupJson);
 
             if (!ok) {
@@ -407,15 +373,19 @@ module.exports = {
 
             return await safeRespond(() =>
               interaction.reply({
-                content: '✅ Khôi phục thành công!',
+                content:
+                  '✅ Khôi phục thành công!',
                 ephemeral: true
               })
             );
+
           } catch (e) {
             console.error(e);
+
             return await safeRespond(() =>
               interaction.reply({
-                content: '❌ File lỗi hoặc không đọc được.',
+                content:
+                  '❌ File lỗi hoặc không đọc được.',
                 ephemeral: true
               })
             );
@@ -472,6 +442,7 @@ module.exports = {
             .setFooter({ text: `ID người chơi: ${target.id}` })
             .setTimestamp();
 
+          // KHÔNG dùng ephemeral -> để mọi người trong kênh đều thấy log này
           return await safeRespond(() =>
             interaction.reply({ embeds: [logEmbed] })
           );
@@ -484,36 +455,52 @@ module.exports = {
       // BUTTONS
       // =========================================================
       if (interaction.isButton()) {
-        // ---------------- DAILY ----------------
+        const customId = interaction.customId;
+
+        // =======================================================
+        // DAILY  (customId dạng: claim_daily_<guildId>_<userId>)
+        // =======================================================
         if (customId.startsWith('claim_daily_')) {
           await interaction.deferReply({ ephemeral: true });
 
           const parts = customId.split('_');
+          // ['claim', 'daily', guildId, userId]
           const targetGuildId = parts[2];
           const targetUserId = parts[3];
 
           if (interaction.user.id !== targetUserId) {
             return await safeRespond(() =>
               interaction.editReply({
-                content: '❌ Đây không phải bảng nhiệm vụ của bạn!'
+                content:
+                  '❌ Đây không phải bảng nhiệm vụ của bạn!'
               })
             );
           }
 
           const dData = store.getDailyData(targetGuildId, targetUserId);
 
-          if (dData.claimedMsg && dData.claimedGame && dData.claimedEarned) {
+          if (
+            dData.claimedMsg &&
+            dData.claimedGame &&
+            dData.claimedEarned
+          ) {
             return await safeRespond(() =>
               interaction.editReply({
-                content: '❌ Bạn đã nhận toàn bộ phần thưởng nhiệm vụ hôm nay rồi!'
+                content:
+                  '❌ Bạn đã nhận toàn bộ phần thưởng nhiệm vụ hôm nay rồi!'
               })
             );
           }
 
-          if (dData.messages < 20 || dData.games < 3 || dData.earned < 2000) {
+          if (
+            dData.messages < 20 ||
+            dData.games < 3 ||
+            dData.earned < 2000
+          ) {
             return await safeRespond(() =>
               interaction.editReply({
-                content: '❌ Bạn chưa hoàn thành đủ các mốc nhiệm vụ!'
+                content:
+                  '❌ Bạn chưa hoàn thành đủ các mốc nhiệm vụ!'
               })
             );
           }
@@ -523,16 +510,20 @@ module.exports = {
           dData.claimedEarned = true;
 
           const rewardBonus = 5000;
+
           store.addTungXu(targetGuildId, targetUserId, rewardBonus);
 
           return await safeRespond(() =>
             interaction.editReply({
-              content: `🎉 Chúc mừng bạn đã hoàn thành nhiệm vụ hằng ngày và nhận được **+${rewardBonus.toLocaleString()} Mcoin** phần thưởng!`
+              content:
+                `🎉 Chúc mừng bạn đã hoàn thành nhiệm vụ hằng ngày và nhận được **+${rewardBonus.toLocaleString()} Mcoin** phần thưởng!`
             })
           );
         }
 
-        // ---------------- BAU CUA ----------------
+        // =======================================================
+        // BAU CUA - FIX: Thêm check replied/deferred
+        // =======================================================
         if (customId.startsWith('bc_')) {
           if (interaction.replied || interaction.deferred) {
             console.warn('⚠️ Button BC: Interaction đã được reply rồi');
@@ -540,6 +531,7 @@ module.exports = {
           }
 
           const gameMsgId = interaction.message.id;
+
           const gameData = store.activeBauCuaGames.get(gameMsgId);
 
           if (!gameData) {
@@ -555,23 +547,26 @@ module.exports = {
           const userId = interaction.user.id;
           const currentBal = store.getBalance(guildId, userId);
 
-          const modal = new ModalBuilder()
-            .setCustomId(`modal_bc_${choice}_${gameMsgId}`)
-            .setTitle(`Cược ${choice.toUpperCase()}`)
-            .addComponents(
-              new ActionRowBuilder().addComponents(
-                new TextInputBuilder()
-                  .setCustomId('bc_bet_input')
-                  .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`)
-                  .setStyle(TextInputStyle.Short)
-                  .setRequired(true)
-              )
-            );
+          const modal =
+            new ModalBuilder()
+              .setCustomId(`modal_bc_${choice}_${gameMsgId}`)
+              .setTitle(`Cược ${choice.toUpperCase()}`)
+              .addComponents(
+                new ActionRowBuilder().addComponents(
+                  new TextInputBuilder()
+                    .setCustomId('bc_bet_input')
+                    .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()}):`)
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true)
+                )
+              );
 
           return await safeRespond(() => interaction.showModal(modal));
         }
 
-        // ---------------- TUNG XU ----------------
+        // =======================================================
+        // TUNG XU - FIX: Thêm check replied/deferred
+        // =======================================================
         if (customId === 'tx_multi_ngua' || customId === 'tx_multi_sap') {
           if (interaction.replied || interaction.deferred) {
             console.warn('⚠️ Button TX: Interaction đã được reply rồi');
@@ -579,6 +574,7 @@ module.exports = {
           }
 
           const gameMsgId = interaction.message.id;
+
           const gameData = store.activeTungXuGames.get(gameMsgId);
 
           if (!gameData) {
@@ -592,30 +588,35 @@ module.exports = {
 
           const userId = interaction.user.id;
           const currentBal = store.getBalance(guildId, userId);
+
           const choice = customId === 'tx_multi_ngua' ? 'ngửa' : 'sấp';
 
-          const modal = new ModalBuilder()
-            .setCustomId(`modal_tx_multi_${choice}_${gameMsgId}`)
-            .setTitle(`Chọn ${choice.toUpperCase()}`)
-            .addComponents(
-              new ActionRowBuilder().addComponents(
-                new TextInputBuilder()
-                  .setCustomId('tx_bet_input')
-                  .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`)
-                  .setStyle(TextInputStyle.Short)
-                  .setPlaceholder('VD: 500')
-                  .setRequired(true)
-              )
-            );
+          const modal =
+            new ModalBuilder()
+              .setCustomId(`modal_tx_multi_${choice}_${gameMsgId}`)
+              .setTitle(`Chọn ${choice.toUpperCase()}`)
+              .addComponents(
+                new ActionRowBuilder().addComponents(
+                  new TextInputBuilder()
+                    .setCustomId('tx_bet_input')
+                    .setLabel(`Nhập số tiền cược (Số dư: ${currentBal.toLocaleString()} Mcoin):`)
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('VD: 500')
+                    .setRequired(true)
+                )
+              );
 
           return await safeRespond(() => interaction.showModal(modal));
         }
 
-        // ---------------- DOAN BOM JOIN ----------------
+        // =======================================================
+        // DOAN BOM JOIN - FIX: Thêm deferUpdate()
+        // =======================================================
         if (customId === 'bom_join') {
           await interaction.deferUpdate();
 
           const gameId = `bom_${interaction.message.id}`;
+
           const gameData = store.activeDoanBomGames.get(gameId);
 
           if (!gameData) {
@@ -650,21 +651,23 @@ module.exports = {
             .map(name => `• ${name}`)
             .join('\n');
 
-          const updatedEmbed = new EmbedBuilder()
-            .setColor('#FF4444')
-            .setTitle('🎮 GAME ĐOÁN BOM 💣')
-            .setDescription(
-              `Bấm nút bên dưới để tham gia!\n\n` +
-              `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
-              playerList
-            );
+          const updatedEmbed =
+            new EmbedBuilder()
+              .setColor('#FF4444')
+              .setTitle('🎮 GAME ĐOÁN BOM 💣')
+              .setDescription(
+                `Bấm nút bên dưới để tham gia!\n\n` +
+                `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
+                playerList
+              );
 
-          const joinRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId('bom_join')
-              .setLabel('🙋 Tham gia')
-              .setStyle(ButtonStyle.Success)
-          );
+          const joinRow =
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId('bom_join')
+                .setLabel('🙋 Tham gia')
+                .setStyle(ButtonStyle.Success)
+            );
 
           return await safeRespond(() =>
             interaction.editReply({
@@ -674,10 +677,19 @@ module.exports = {
           );
         }
 
-        // ---------------- MA SOI ----------------
+        /*
+         * KHÔNG xử lý bom_cell_* ở đây.
+         * games/doanbom.js đã có collector riêng cho các nút này.
+         */
+
+        // =======================================================
+        // MA SOI
+        // =======================================================
         if (customId.startsWith('ms_')) {
           const parts = customId.split('_');
+
           const gameMsgId = parts[parts.length - 1];
+
           const action = parts[1];
 
           const gameData = store.activeMaSoiGames.get(gameMsgId);
@@ -693,7 +705,7 @@ module.exports = {
 
           const userId = interaction.user.id;
 
-          // JOIN
+          // ---------------- JOIN - FIX: Thêm deferUpdate() ----------------
           if (action === 'join') {
             await interaction.deferUpdate();
 
@@ -715,22 +727,24 @@ module.exports = {
 
             gameData.participants.set(userId, interaction.user.username);
 
-            const updatedEmbed = new EmbedBuilder()
-              .setColor('#8B0000')
-              .setTitle('🐺 GAME MA SÓI 🌕')
-              .setDescription(
-                `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
-                Array.from(gameData.participants.values())
-                  .map(n => `• ${n}`)
-                  .join('\n')
-              );
+            const updatedEmbed =
+              new EmbedBuilder()
+                .setColor('#8B0000')
+                .setTitle('🐺 GAME MA SÓI 🌕')
+                .setDescription(
+                  `👥 Đã tham gia: **${gameData.participants.size}** người\n` +
+                  Array.from(gameData.participants.values())
+                    .map(n => `• ${n}`)
+                    .join('\n')
+                );
 
-            const joinRow = new ActionRowBuilder().addComponents(
-              new ButtonBuilder()
-                .setCustomId(`ms_join_${gameMsgId}`)
-                .setLabel('🙋 Tham gia')
-                .setStyle(ButtonStyle.Success)
-            );
+            const joinRow =
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`ms_join_${gameMsgId}`)
+                  .setLabel('🙋 Tham gia')
+                  .setStyle(ButtonStyle.Success)
+              );
 
             return await safeRespond(() =>
               interaction.editReply({
@@ -742,7 +756,7 @@ module.exports = {
 
           const myRole = gameData.roles.get(userId);
 
-          // WOLF
+          // ---------------- WOLF ----------------
           if (action === 'wolf') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -755,6 +769,7 @@ module.exports = {
             }
 
             const targetId = parts[2];
+
             gameData.wolfVotes.set(userId, targetId);
 
             return await safeRespond(() =>
@@ -764,7 +779,7 @@ module.exports = {
             );
           }
 
-          // GUARD
+          // ---------------- GUARD ----------------
           if (action === 'guard') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -777,6 +792,7 @@ module.exports = {
             }
 
             const targetId = parts[2];
+
             gameData.guardTarget = targetId;
 
             return await safeRespond(() =>
@@ -786,7 +802,7 @@ module.exports = {
             );
           }
 
-          // DOCTOR
+          // ---------------- DOCTOR ----------------
           if (action === 'doctor') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -799,6 +815,7 @@ module.exports = {
             }
 
             const targetId = parts[2];
+
             gameData.doctorTarget = targetId;
 
             return await safeRespond(() =>
@@ -808,7 +825,7 @@ module.exports = {
             );
           }
 
-          // SEER
+          // ---------------- SEER ----------------
           if (action === 'seer') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -829,7 +846,9 @@ module.exports = {
             }
 
             const targetId = parts[2];
+
             gameData.seerActed = true;
+
             const isWolf = gameData.roles.get(targetId) === 'soi';
 
             return await safeRespond(() =>
@@ -841,7 +860,7 @@ module.exports = {
             );
           }
 
-          // WITCH HEAL
+          // ---------------- WITCH HEAL ----------------
           if (action === 'witchheal') {
             await interaction.deferUpdate();
 
@@ -873,7 +892,7 @@ module.exports = {
             );
           }
 
-          // WITCH POISON MENU
+          // ---------------- WITCH POISON MENU ----------------
           if (action === 'witchpoisonmenu') {
             await interaction.deferUpdate();
 
@@ -902,7 +921,7 @@ module.exports = {
             );
           }
 
-          // WITCH POISON
+          // ---------------- WITCH POISON ----------------
           if (action === 'witchpoison') {
             await interaction.deferUpdate();
 
@@ -921,37 +940,335 @@ module.exports = {
             }
 
             const targetId = parts[2];
-            gameData.witchPoisonTarget = targetId;
+
+            if (!targetId || !gameData.alive.has(targetId)) {
+              return await safeRespond(() =>
+                interaction.editReply({
+                  content: '❌ Người chơi này không còn sống!',
+                  embeds: [],
+                  components: []
+                })
+              );
+            }
+
             gameData.witchPoisonUsed = true;
+            gameData.witchPoisonTarget = targetId;
             gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content: `☠️ Bạn đã dùng bình độc lên **${gameData.participants.get(targetId)}**!`,
+                content: `☠️ Đã đầu độc **${gameData.participants.get(targetId)}**!`,
                 embeds: [],
                 components: []
               })
             );
           }
 
-          // WITCH PASS
-          if (action === 'witchpass') {
+          // ---------------- WITCH SKIP ----------------
+          if (action === 'witchskip') {
             await interaction.deferUpdate();
 
             gameData.witchActedTonight = true;
 
             return await safeRespond(() =>
               interaction.editReply({
-                content: '⏭️ Bạn đã chọn không làm gì đêm nay.',
+                content: '➡️ Bạn đã bỏ qua lượt này.',
                 embeds: [],
                 components: []
               })
             );
           }
+
+          // ---------------- VOTE ----------------
+          if (action === 'vote') {
+            await interaction.deferReply({ ephemeral: true });
+
+            if (!gameData.alive.has(userId)) {
+              return await safeRespond(() =>
+                interaction.editReply({
+                  content: '❌ Bạn đã bị loại, không thể vote!'
+                })
+              );
+            }
+
+            const targetId = parts[2];
+
+            if (!targetId || !gameData.alive.has(targetId)) {
+              return await safeRespond(() =>
+                interaction.editReply({
+                  content: '❌ Người chơi này không còn sống!'
+                })
+              );
+            }
+
+            gameData.votes.set(userId, targetId);
+
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: `✅ Bạn đã vote treo cổ **${gameData.participants.get(targetId)}**!`
+              })
+            );
+          }
+
+          // ---------------- HUNTER ----------------
+          if (action === 'hunter') {
+            await interaction.deferReply({ ephemeral: true });
+
+            if (gameData.pendingHunterId !== userId) {
+              return await safeRespond(() =>
+                interaction.editReply({
+                  content: '❌ Đây không phải lượt của bạn!'
+                })
+              );
+            }
+
+            const targetId = parts[2];
+
+            if (!targetId || !gameData.alive.has(targetId)) {
+              return await safeRespond(() =>
+                interaction.editReply({
+                  content: '❌ Người chơi này không còn sống!'
+                })
+              );
+            }
+
+            gameData.hunterRevengeTarget = targetId;
+            gameData.pendingHunterId = null;
+
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: `🏹 Bạn đã bắn hạ **${gameData.participants.get(targetId)}** trước khi ngã xuống!`
+              })
+            );
+          }
+
+          return;
         }
+
+        return;
       }
+
+      // =========================================================
+      // MODALS
+      // =========================================================
+      if (interaction.isModalSubmit()) {
+        const customId = interaction.customId;
+
+        // ---------------- BAU CUA ----------------
+        if (customId.startsWith('modal_bc_')) {
+          await interaction.deferReply({ ephemeral: true });
+
+          const parts = customId.split('_');
+
+          const choice = parts[2];
+
+          const gameMsgId = parts[3];
+
+          const gameData = store.activeBauCuaGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Sòng đã kết thúc!'
+              })
+            );
+          }
+
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('bc_bet_input')
+          );
+
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Tiền cược không hợp lệ!'
+              })
+            );
+          }
+
+          const userId = interaction.user.id;
+
+          const currentBal = store.getBalance(guildId, userId);
+
+          if (currentBal < betAmount) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Bạn không đủ số dư!'
+              })
+            );
+          }
+
+          store.setBalance(guildId, userId, currentBal - betAmount);
+
+          if (!gameData.players.has(userId)) {
+            gameData.players.set(userId, {
+              username: interaction.user.username,
+              bets: []
+            });
+          }
+
+          gameData.players.get(userId).bets.push({ choice, bet: betAmount });
+
+          store.addLeaderboardScore(guildId, userId, betAmount);
+
+          const totalBetSoFar = gameData.players.get(userId).bets.reduce((sum, b) => sum + b.bet, 0);
+
+          return await safeRespond(() =>
+            interaction.editReply({
+              content:
+                `✅ Đã đặt cược thêm **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!\n` +
+                `(Tổng đã cược trong ván này: **${totalBetSoFar.toLocaleString()} Mcoin**)`
+            })
+          );
+        }
+
+        // ---------------- TUNG XU ----------------
+        if (customId.startsWith('modal_tx_multi_')) {
+          await interaction.deferReply({ ephemeral: true });
+
+          const parts = customId.split('_');
+
+          const choice = parts[3];
+
+          const gameMsgId = parts[4];
+
+          const gameData = store.activeTungXuGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Sòng đã kết thúc!'
+              })
+            );
+          }
+
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('tx_bet_input')
+          );
+
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Tiền cược không hợp lệ!'
+              })
+            );
+          }
+
+          const userId = interaction.user.id;
+
+          const currentBal = store.getBalance(guildId, userId);
+
+          const oldBet = gameData.players.has(userId) ? gameData.players.get(userId).bet : 0;
+
+          const netNeeded = betAmount - oldBet;
+
+          if (currentBal < netNeeded) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Không đủ số dư!'
+              })
+            );
+          }
+
+          store.setBalance(guildId, userId, currentBal - netNeeded);
+
+          gameData.players.set(userId, {
+            username: interaction.user.username,
+            choice,
+            bet: betAmount
+          });
+
+          if (netNeeded > 0) {
+            store.addLeaderboardScore(guildId, userId, netNeeded);
+          }
+
+          return await safeRespond(() =>
+            interaction.editReply({
+              content: `✅ Đã cược thành công **${betAmount.toLocaleString()} Mcoin** vào **${choice.toUpperCase()}**!`
+            })
+          );
+        }
+
+        // ---------------- CAO NUT ----------------
+        if (customId.startsWith('cn_bet_')) {
+          await interaction.deferReply({ ephemeral: true });
+
+          const parts = customId.split('_');
+
+          const gameMsgId = parts[2];
+
+          const userId = parts[3];
+
+          const gameData = store.activeCaoNutGames.get(gameMsgId);
+
+          if (!gameData) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Ván đã kết thúc!'
+              })
+            );
+          }
+
+          const betAmount = parseInt(
+            interaction.fields.getTextInputValue('cn_bet_amount')
+          );
+
+          if (isNaN(betAmount) || betAmount <= 0) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Tiền cược không hợp lệ!'
+              })
+            );
+          }
+
+          // Check if bet equals required amount
+          if (betAmount !== gameData.betAmount) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: `❌ Tiền cược phải bằng **${gameData.betAmount.toLocaleString()} Mcoin**!`
+              })
+            );
+          }
+
+          const currentBal = store.getBalance(guildId, userId);
+
+          if (currentBal < betAmount) {
+            return await safeRespond(() =>
+              interaction.editReply({
+                content: '❌ Bạn không đủ số dư!'
+              })
+            );
+          }
+
+          // Deduct the bet immediately
+          store.setBalance(guildId, userId, currentBal - betAmount);
+
+          gameData.players.set(userId, {
+            username: interaction.user.username,
+            bet: betAmount,
+            cards: []
+          });
+
+          store.addLeaderboardScore(guildId, userId, betAmount);
+
+          return await safeRespond(() =>
+            interaction.editReply({
+              content:
+                `✅ Đã tham gia ván thành công!\n💰 Tiền Cược: **${betAmount.toLocaleString()} Mcoin**\n\n👥 Đợi người chơi khác...`
+            })
+          );
+        }
+
+        return;
+      }
+
     } catch (err) {
-      console.error('❌ Lỗi không xác định trong interactionCreate:', err);
+      if (err?.code === 10062 || err?.code === 40060) {
+        console.warn(`⚠️ Bỏ qua lỗi interaction ${err.code}`);
+        return;
+      }
+
+      console.error('❌ Lỗi xử lý interactionCreate:', err);
     }
   }
 };
