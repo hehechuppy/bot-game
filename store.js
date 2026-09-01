@@ -39,16 +39,6 @@ const SHOP_ITEMS = [
     },
     {
         id: 2,
-        type: 'winmultiplier',
-        name: 'X2 Tiền',
-        description: 'Khi thắng ở Bầu Cua/Tung Xu, tiền thưởng nhân 2. Mỗi ván (thắng hoặc thua) đều trừ 1 lượt. (5 lượt)',
-        price: 1000000,
-        uses: 2,
-        multiplier: 2,
-        dailyLimit: 2
-    },
-    {
-        id: 3,
         type: 'insurance',
         name: 'Bảo Hiểm Thua',
         description: 'Nếu thua ở Bầu Cua/Tung Xu, được hoàn lại 75% số tiền đã thua (1 lần).',
